@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import '../blocs/generator_bloc.dart';
 import '../blocs/generator_event.dart';
 import '../blocs/generator_state.dart';
+import '../../../core/utils/cert_generator.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
 const _colorOptions = [
@@ -1025,7 +1026,8 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Use {nome_da_coluna} para valores dinâmicos. Ex: {nome}, {horas}.',
+                  'Use {nome_da_coluna} para valores dinâmicos. Ex: {nome}, {horas}.\n'
+                  'Dica: Crie tabelas estilo Markdown (ex: | Coluna 1 | Coluna 2 |) para organizar o conteúdo do verso!',
                   style: TextStyle(color: Colors.white60, fontSize: 12.5),
                 ),
               ),
@@ -1478,6 +1480,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     );
   }
 
+
   Widget _buildInteractivePreview(GeneratorLoaded state) {
     final idx = state.selectedCsvRowIndex.clamp(0, state.mappedData.isEmpty ? 0 : state.mappedData.length - 1);
     final rowData = state.mappedData.isEmpty ? <String, dynamic>{} : state.mappedData[idx];
@@ -1504,37 +1507,16 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             return Stack(
               children: [
                 Image.memory(currentImageBytes!, fit: BoxFit.contain),
-                // Posicionamento relativo ao tamanho do container de preview
                 Positioned.fill(
-                  child: LayoutBuilder(
-                    builder: (ctx, box) {
-                      return Stack(
-                        children: [
-                          Positioned(
-                            left: box.maxWidth * currentPosX - 1,
-                            top: box.maxHeight * currentPosY - 1,
-                            child: FractionalTranslation(
-                              translation: const Offset(-0.5, -0.5),
-                              child: Container(
-                                constraints: BoxConstraints(maxWidth: box.maxWidth * 0.8),
-                                child: Text(
-                                  previewText,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: currentFontFamily,
-                                    fontSize: currentFontSize,
-                                    color: Color(currentFontColor),
-                                    shadows: const [
-                                      Shadow(blurRadius: 2, color: Colors.black26, offset: Offset(1, 1)),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  child: CustomPaint(
+                    painter: CertPreviewPainter(
+                      parsedText: previewText,
+                      fontSize: currentFontSize,
+                      fontFamily: currentFontFamily,
+                      fontColor: Color(currentFontColor),
+                      textPositionX: currentPosX,
+                      textPositionY: currentPosY,
+                    ),
                   ),
                 ),
               ],
@@ -1565,4 +1547,46 @@ class CheckerboardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class CertPreviewPainter extends CustomPainter {
+  final String parsedText;
+  final double fontSize;
+  final String fontFamily;
+  final Color fontColor;
+  final double textPositionX;
+  final double textPositionY;
+
+  CertPreviewPainter({
+    required this.parsedText,
+    required this.fontSize,
+    required this.fontFamily,
+    required this.fontColor,
+    required this.textPositionX,
+    required this.textPositionY,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    CertGenerator.drawCertificateContent(
+      canvas,
+      size,
+      parsedText,
+      fontSize,
+      fontFamily,
+      fontColor,
+      textPositionX: textPositionX,
+      textPositionY: textPositionY,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CertPreviewPainter oldDelegate) {
+    return oldDelegate.parsedText != parsedText ||
+        oldDelegate.fontSize != fontSize ||
+        oldDelegate.fontFamily != fontFamily ||
+        oldDelegate.fontColor != fontColor ||
+        oldDelegate.textPositionX != textPositionX ||
+        oldDelegate.textPositionY != textPositionY;
+  }
 }

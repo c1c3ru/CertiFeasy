@@ -125,32 +125,16 @@ class TableBlock extends ContentBlock {
 }
 
 class CertGenerator {
-  /// Gera a imagem PNG do certificado.
-  ///
-  /// [textPositionX] e [textPositionY] são valores normalizados (0.0 a 1.0)
-  /// que indicam onde o centro do texto será posicionado na imagem.
-  static Future<Uint8List> generateCertificateImage(
-    ui.Image templateImage,
-    Map<String, dynamic> rowData,
-    String textTemplate,
+  static void drawCertificateContent(
+    Canvas canvas,
+    Size size,
+    String parsedText,
     double fontSize,
     String fontFamily,
     Color fontColor, {
     double textPositionX = 0.5,
     double textPositionY = 0.5,
-  }) async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-
-    final size = Size(templateImage.width.toDouble(), templateImage.height.toDouble());
-    canvas.drawImage(templateImage, Offset.zero, Paint());
-
-    // Substituir variáveis
-    String parsedText = textTemplate;
-    rowData.forEach((key, value) {
-      parsedText = parsedText.replaceAll('{$key}', value.toString());
-    });
-
+  }) {
     final style = TextStyle(
       color: fontColor,
       fontSize: fontSize,
@@ -230,6 +214,40 @@ class CertGenerator {
       
       startY += bSize.height + spacing;
     }
+  }
+
+  static Future<Uint8List> generateCertificateImage(
+    ui.Image templateImage,
+    Map<String, dynamic> rowData,
+    String textTemplate,
+    double fontSize,
+    String fontFamily,
+    Color fontColor, {
+    double textPositionX = 0.5,
+    double textPositionY = 0.5,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    final size = Size(templateImage.width.toDouble(), templateImage.height.toDouble());
+    canvas.drawImage(templateImage, Offset.zero, Paint());
+
+    // Substituir variáveis
+    String parsedText = textTemplate;
+    rowData.forEach((key, value) {
+      parsedText = parsedText.replaceAll('{$key}', value.toString());
+    });
+
+    drawCertificateContent(
+      canvas,
+      size,
+      parsedText,
+      fontSize,
+      fontFamily,
+      fontColor,
+      textPositionX: textPositionX,
+      textPositionY: textPositionY,
+    );
 
     final picture = recorder.endRecording();
     final img = await picture.toImage(size.width.toInt(), size.height.toInt());
