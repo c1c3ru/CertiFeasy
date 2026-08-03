@@ -171,6 +171,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   Widget build(BuildContext context) {
     return BlocConsumer<GeneratorBloc, GeneratorState>(
       bloc: _bloc,
+      buildWhen: (previous, current) => current is GeneratorLoaded || current is GeneratorInitial,
       listener: (context, state) {
         if (state is GeneratorError) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
