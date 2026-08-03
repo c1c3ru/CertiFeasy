@@ -429,7 +429,55 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   // ─── TAB 0: UPLOAD ────────────────────────────────────────────────────
   Widget _buildUploadContent(GeneratorLoaded state) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+
+        // ── 1. Template Frente ───────────────────────────────────────────────
+        _buildSectionLabel('Templates'),
+        const SizedBox(height: 12),
+        _buildDropBox(
+          title: 'Template Frente',
+          subtitle: state.templateImageBytes != null ? 'Imagem carregada ✓' : 'JPG ou PNG — arte da frente',
+          icon: Icons.image_outlined,
+          isLoaded: state.templateImageBytes != null,
+          onTap: _pickImage,
+          onDrop: (details) async {
+            final file = details.files.first;
+            final path = file.name.toLowerCase();
+            if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+              final bytes = await file.readAsBytes();
+              _bloc.add(LoadFilesEvent(imageBytes: bytes));
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // ── 2. Template Verso (sempre visível) ───────────────────────────────
+        _buildDropBox(
+          title: 'Template Verso',
+          subtitle: state.backTemplateImageBytes != null
+              ? 'Verso carregado ✓'
+              : 'JPG ou PNG — arte do verso (opcional)',
+          icon: Icons.flip_rounded,
+          isLoaded: state.backTemplateImageBytes != null,
+          accentColor: const Color(0xFFE8973A),
+          onTap: _pickBackImage,
+          onDrop: (details) async {
+            final file = details.files.first;
+            final path = file.name.toLowerCase();
+            if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+              final bytes = await file.readAsBytes();
+              _bloc.add(LoadBackImageEvent(bytes));
+            }
+          },
+        ),
+        const SizedBox(height: 24),
+        const Divider(color: Colors.white10),
+        const SizedBox(height: 20),
+
+        // ── 3. CSV ───────────────────────────────────────────────────────────
+        _buildSectionLabel('Dados dos Participantes'),
+        const SizedBox(height: 12),
         _buildDropBox(
           title: 'Arquivo CSV',
           subtitle: state.mappedData.isNotEmpty
@@ -460,24 +508,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        _buildDropBox(
-          title: 'Template (Imagem)',
-          subtitle: state.templateImageBytes != null ? 'Imagem carregada ✓' : 'JPG ou PNG',
-          icon: Icons.image_outlined,
-          isLoaded: state.templateImageBytes != null,
-          onTap: _pickImage,
-          onDrop: (details) async {
-            final file = details.files.first;
-            final path = file.name.toLowerCase();
-            if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg')) {
-              final bytes = await file.readAsBytes();
-              _bloc.add(LoadFilesEvent(imageBytes: bytes));
-            }
-          },
-        ),
+
+        // Chips de colunas detectadas
         if (state.csvHeaders.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -507,11 +541,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             ),
           ),
         ],
+
         const SizedBox(height: 24),
         const Divider(color: Colors.white10),
         const SizedBox(height: 20),
 
-        // ── Seletor de Modo PDF ──────────────────────────────────────────────
+        // ── 4. Seletor de Modo PDF ───────────────────────────────────────────
         _buildSectionLabel('Modo de Saída PDF'),
         const SizedBox(height: 4),
         const Text(
@@ -520,58 +555,59 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         ),
         const SizedBox(height: 14),
         _buildPdfModeSelector(state),
+        const SizedBox(height: 16),
 
-        // ── Dropzone Verso (condicional) ─────────────────────────────────────
-        if (state.pdfMode != PdfMode.frontOnly) ...[
-          const SizedBox(height: 16),
-          _buildDropBox(
-            title: 'Template Verso',
-            subtitle: state.backTemplateImageBytes != null
-                ? 'Verso carregado ✓'
-                : 'JPG ou PNG — arte do verso',
-            icon: Icons.flip_rounded,
-            isLoaded: state.backTemplateImageBytes != null,
-            accentColor: const Color(0xFFE8973A),
-            onTap: _pickBackImage,
-            onDrop: (details) async {
-              final file = details.files.first;
-              final path = file.name.toLowerCase();
-              if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg')) {
-                final bytes = await file.readAsBytes();
-                _bloc.add(LoadBackImageEvent(bytes));
-              }
-            },
-          ),
-          if (state.pdfMode == PdfMode.backOnly)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8973A).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE8973A).withValues(alpha: 0.3)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFE8973A)),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Modo Somente Verso: o PDF terá apenas a imagem do verso, sem texto dinâmico.',
-                        style: TextStyle(color: Color(0xFFE8973A), fontSize: 11.5),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        // Info contextual por modo
+        if (state.pdfMode == PdfMode.backOnly)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8973A).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE8973A).withValues(alpha: 0.3)),
             ),
-        ],
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFE8973A)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Somente Verso: o PDF terá apenas o template do verso, sem texto dinâmico.',
+                    style: TextStyle(color: Color(0xFFE8973A), fontSize: 11.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (state.pdfMode == PdfMode.frontAndBack && state.backTemplateImageBytes == null)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8973A).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE8973A).withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFE8973A)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Carregue o Template Verso para habilitar o modo Frente + Verso.',
+                    style: TextStyle(color: Color(0xFFE8973A), fontSize: 11.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        const SizedBox(height: 8),
       ],
     );
   }
 
   Widget _buildPdfModeSelector(GeneratorLoaded state) {
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF16192B),

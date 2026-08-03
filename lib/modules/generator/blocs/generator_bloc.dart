@@ -30,45 +30,46 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   // ─── Handlers ────────────────────────────────────────────────────────────
 
   void _onLoadFiles(LoadFilesEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorInitial || state is GeneratorError) {
-      emit(GeneratorLoaded(
+    // Resolve o estado atual — se ainda não foi inicializado, cria um estado vazio
+    final GeneratorLoaded current;
+    if (state is GeneratorLoaded) {
+      current = state as GeneratorLoaded;
+    } else {
+      current = GeneratorLoaded(
         csvData: const [],
         csvHeaders: const [],
         mappedData: const [],
-      ));
+      );
     }
 
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    List<List<dynamic>> newCsvData = current.csvData;
+    List<String> newHeaders = current.csvHeaders;
+    List<Map<String, dynamic>> newMappedData = current.mappedData;
 
-      List<List<dynamic>> newCsvData = current.csvData;
-      List<String> newHeaders = current.csvHeaders;
-      List<Map<String, dynamic>> newMappedData = current.mappedData;
-
-      if (event.csvContent != null) {
-        final rows = const CsvToListConverter().convert(event.csvContent!);
-        if (rows.isNotEmpty) {
-          newCsvData = rows;
-          newHeaders = rows.first.map((e) => e.toString()).toList();
-          newMappedData = [
-            for (int i = 1; i < rows.length; i++)
-              {
-                for (int j = 0; j < newHeaders.length; j++)
-                  if (j < rows[i].length) newHeaders[j]: rows[i][j],
-              }
-          ];
-        }
+    if (event.csvContent != null) {
+      final rows = const CsvToListConverter().convert(event.csvContent!);
+      if (rows.isNotEmpty) {
+        newCsvData = rows;
+        newHeaders = rows.first.map((e) => e.toString()).toList();
+        newMappedData = [
+          for (int i = 1; i < rows.length; i++)
+            {
+              for (int j = 0; j < newHeaders.length; j++)
+                if (j < rows[i].length) newHeaders[j]: rows[i][j],
+            }
+        ];
       }
-
-      emit(current.copyWith(
-        csvData: newCsvData,
-        csvHeaders: newHeaders,
-        mappedData: newMappedData,
-        templateImageBytes: event.imageBytes ?? current.templateImageBytes,
-        selectedCsvRowIndex: 0,
-      ));
     }
+
+    emit(current.copyWith(
+      csvData: newCsvData,
+      csvHeaders: newHeaders,
+      mappedData: newMappedData,
+      templateImageBytes: event.imageBytes ?? current.templateImageBytes,
+      selectedCsvRowIndex: 0,
+    ));
   }
+
 
   void _onLoadBackImage(LoadBackImageEvent event, Emitter<GeneratorState> emit) {
     if (state is GeneratorLoaded) {

@@ -1,6 +1,15 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
+
+# Fix: Flutter snap does not bundle ninja. Force use of system ninja.
+# See: https://github.com/flutter/flutter/issues/106979
+if(NOT DEFINED CMAKE_MAKE_PROGRAM OR NOT EXISTS "${CMAKE_MAKE_PROGRAM}")
+  find_program(NINJA_EXECUTABLE ninja REQUIRED)
+  set(CMAKE_MAKE_PROGRAM "${NINJA_EXECUTABLE}" CACHE FILEPATH "Ninja build tool" FORCE)
+endif()
+
 project(runner LANGUAGES CXX)
+
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
