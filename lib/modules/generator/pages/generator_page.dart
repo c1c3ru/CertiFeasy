@@ -92,7 +92,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
       withData: true,
     );
     if (result != null && result.files.first.bytes != null) {
-      final csvString = utf8.decode(result.files.first.bytes!);
+      String csvString;
+      try {
+        csvString = utf8.decode(result.files.first.bytes!);
+      } catch (e) {
+        csvString = latin1.decode(result.files.first.bytes!);
+      }
       _bloc.add(LoadFilesEvent(csvContent: csvString));
     }
   }
@@ -703,7 +708,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             final file = details.files.first;
             if (file.name.toLowerCase().endsWith('.csv')) {
               final bytes = await file.readAsBytes();
-              final csvString = utf8.decode(bytes);
+              String csvString;
+              try {
+                csvString = utf8.decode(bytes);
+              } catch (e) {
+                csvString = latin1.decode(bytes);
+              }
               _bloc.add(LoadFilesEvent(csvContent: csvString));
             }
           },
