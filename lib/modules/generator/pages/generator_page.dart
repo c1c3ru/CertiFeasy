@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_modular/flutter_modular.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:path_provider/path_provider.dart';
@@ -50,7 +49,7 @@ class GeneratorPage extends StatefulWidget {
 }
 
 class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateMixin {
-  final _bloc = Modular.get<GeneratorBloc>();
+  late final GeneratorBloc _bloc;
   int _currentTab = 0;
   late final AnimationController _panelAnimController;
   late Animation<double> _panelFade;
@@ -61,6 +60,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
+    _bloc = BlocProvider.of<GeneratorBloc>(context);
     _bloc.add(LoadFilesEvent());
     _panelAnimController = AnimationController(
       vsync: this,
@@ -242,13 +242,15 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                 child: const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'CertifEasy',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: -0.3,
+              const Expanded(
+                child: Text(
+                  'CertifEasy',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -257,6 +259,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           _buildSidebarItem(0, 'Upload', Icons.upload_file_rounded, state),
           _buildSidebarItem(1, 'Texto & Variáveis', Icons.text_fields_rounded, state),
           _buildSidebarItem(2, 'Aparência', Icons.palette_rounded, state),
+          _buildSidebarItem(3, 'E-mails', Icons.email_rounded, state),
           const Spacer(),
           // ── Botão: Gerar ZIP (PNGs) ──────────────────────────────────
           _buildSidebarActionButton(
@@ -361,13 +364,15 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               children: [
                 Icon(icon, color: Colors.white, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    letterSpacing: 0.2,
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -434,12 +439,15 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: isDisabled ? Colors.white24 : isSelected ? Colors.white : Colors.white70,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    fontSize: 13.5,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isDisabled ? Colors.white24 : isSelected ? Colors.white : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      fontSize: 13.5,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -1294,11 +1302,14 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             ),
             child: Row(
               children: [
-                const Text(
-                  'Visualização em Tempo Real',
-                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                const Expanded(
+                  child: Text(
+                    'Visualização em Tempo Real',
+                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 if (state.mappedData.isNotEmpty) _buildPreviewNav(state),
               ],
             ),

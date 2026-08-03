@@ -58,8 +58,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     List<Map<String, dynamic>> newMappedData = current.mappedData;
 
     if (event.csvContent != null) {
-      final delimiter = event.csvContent!.split('\n').first.contains(';') ? ';' : ',';
-      final rows = CsvToListConverter(fieldDelimiter: delimiter).convert(event.csvContent!);
+      final sanitizedContent = event.csvContent!.replaceAll('\r\n', '\n');
+      final delimiter = sanitizedContent.split('\n').first.contains(';') ? ';' : ',';
+      final rows = const CsvToListConverter(eol: '\n').convert(
+        sanitizedContent,
+        fieldDelimiter: delimiter,
+      );
       if (rows.isNotEmpty) {
         newCsvData = rows;
         // Remove espaços e caracteres invisíveis (como BOM \ufeff) dos cabeçalhos

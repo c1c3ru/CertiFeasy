@@ -56,10 +56,12 @@ void main() {
 
     blocTest<GeneratorBloc, GeneratorState>(
       'emits GeneratorLoaded when LoadBackImageEvent is added',
-      build: () {
-        generatorBloc.add(LoadFilesEvent(csvContent: 'test;test\na;b', imageBytes: dummyImageBytes));
-        return generatorBloc;
-      },
+      seed: () => GeneratorLoaded(
+        csvData: const [['test1', 'test2'], ['a', 'b']],
+        csvHeaders: const ['test1', 'test2'],
+        mappedData: const [{'test1': 'a', 'test2': 'b'}],
+      ),
+      build: () => generatorBloc,
       act: (bloc) => bloc.add(LoadBackImageEvent(dummyImageBytes)),
       skip: 1, // skip the load back image success message
       expect: () => [
@@ -70,10 +72,12 @@ void main() {
 
     blocTest<GeneratorBloc, GeneratorState>(
       'updates text position correctly',
-      build: () {
-        generatorBloc.add(LoadFilesEvent(csvContent: 'a\nb'));
-        return generatorBloc;
-      },
+      seed: () => GeneratorLoaded(
+        csvData: const [['a'], ['b']],
+        csvHeaders: const ['a'],
+        mappedData: const [{'a': 'b'}],
+      ),
+      build: () => generatorBloc,
       act: (bloc) => bloc.add(UpdateTextPositionEvent(dx: 0.2, dy: 0.8)),
       skip: 0,
       expect: () => [
@@ -85,10 +89,12 @@ void main() {
 
     blocTest<GeneratorBloc, GeneratorState>(
       'updates PDF mode correctly',
-      build: () {
-        generatorBloc.add(LoadFilesEvent(csvContent: 'a\nb'));
-        return generatorBloc;
-      },
+      seed: () => GeneratorLoaded(
+        csvData: const [['a'], ['b']],
+        csvHeaders: const ['a'],
+        mappedData: const [{'a': 'b'}],
+      ),
+      build: () => generatorBloc,
       act: (bloc) => bloc.add(UpdatePdfModeEvent(PdfMode.frontAndBack)),
       skip: 0,
       expect: () => [

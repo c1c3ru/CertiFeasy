@@ -24,14 +24,18 @@ void main() {
   }
 
   testWidgets('GeneratorPage renders basic layout correctly', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
     final bloc = GeneratorBloc();
     await tester.pumpWidget(createWidgetUnderTest(bloc));
+    await tester.pumpAndSettle();
 
     // Verify tabs
-    expect(find.text('Upload de Arquivos'), findsOneWidget);
+    expect(find.text('Upload'), findsOneWidget);
     expect(find.text('Texto & Variáveis'), findsOneWidget);
     expect(find.text('Aparência'), findsOneWidget);
-    expect(find.text('Configurar E-mails'), findsOneWidget);
+    expect(find.text('E-mails'), findsOneWidget);
     
     // Default tab is 0, so upload content should be visible
     expect(find.text('Template Frente'), findsOneWidget);
@@ -41,8 +45,12 @@ void main() {
   });
 
   testWidgets('Displays empty state message on other tabs if no data', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
     final bloc = GeneratorBloc();
     await tester.pumpWidget(createWidgetUnderTest(bloc));
+    await tester.pumpAndSettle();
 
     // Tap on Text & Variables tab (index 1)
     await tester.tap(find.text('Texto & Variáveis').last);
@@ -55,9 +63,13 @@ void main() {
   });
   
   testWidgets('Shows variable chips when CSV is loaded', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
     final bloc = GeneratorBloc();
     
     await tester.pumpWidget(createWidgetUnderTest(bloc));
+    await tester.pumpAndSettle();
     
     // Wait for initial email config load to finish so it's in GeneratorLoaded
     await tester.pumpAndSettle();
@@ -77,7 +89,8 @@ void main() {
     // Verify it's not in unknown state
     expect(find.text('Estado desconhecido'), findsNothing);
 
-    await tester.tap(find.text('Texto & Variáveis'));
+    // Change to tab 1 to see chips
+    await tester.tap(find.text('Texto & Variáveis').last);
     await tester.pumpAndSettle();
 
     // Verify chips in variables tab
