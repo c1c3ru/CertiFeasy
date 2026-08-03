@@ -173,6 +173,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ));
+        } else if (state is GeneratorSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(state.message, style: const TextStyle(color: Colors.white)),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ));
         }
       },
       builder: (context, state) {
@@ -290,65 +296,75 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               style: const TextStyle(color: Color(0xFF7A78FF), fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ],
-          const SizedBox(height: 24),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 12),
-          const Text('Desenvolvido por c1c3ru', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white60)),
-          const SizedBox(height: 4),
-          const Text('DEPPI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF7A78FF))),
-          const Text(
-            'Departamento de Extensão,\nPesquisa, Pós-Graduação e Inovação',
-            style: TextStyle(fontSize: 10, color: Colors.white38),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Coordenação de TI · Campus Maracanaú',
-            style: TextStyle(fontSize: 10, color: Colors.white38),
-          ),
         ],
       ),
     );
   }
 
-  /// Botão de ação reutilizável para a sidebar (ZIP / PDF)
+  InputDecoration _inputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+      prefixIcon: Icon(icon, color: Colors.white38, size: 18),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.05),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.white10),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF7A78FF)),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    );
+  }
+
   Widget _buildSidebarActionButton({
     required String label,
     required IconData icon,
     required bool enabled,
-    required LinearGradient gradient,
+    required Gradient gradient,
     required Color glowColor,
     required VoidCallback onTap,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: enabled ? 1.0 : 0.4,
+      child: Container(
+        height: 48,
         decoration: BoxDecoration(
           gradient: enabled ? gradient : null,
-          color: enabled ? null : const Color(0xFF2E334F),
-          borderRadius: BorderRadius.circular(10),
+          color: enabled ? null : Colors.white10,
+          borderRadius: BorderRadius.circular(12),
           boxShadow: enabled
-              ? [BoxShadow(color: glowColor.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 4))]
+              ? [BoxShadow(color: glowColor.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4))]
               : [],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: enabled ? onTap : null,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 17, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+            borderRadius: BorderRadius.circular(12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    letterSpacing: 0.2,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -358,22 +374,40 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   Widget _buildSidebarItem(int index, String title, IconData icon, GeneratorLoaded state) {
     final isSelected = _currentTab == index;
+    // As abas dependem do upload do CSV + Imagem Frente
     final isDisabled = index > 0 && (state.templateImageBytes == null || state.mappedData.isEmpty);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF7A78FF).withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: isSelected ? Border.all(color: const Color(0xFF7A78FF).withValues(alpha: 0.4), width: 1) : null,
-        ),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
-          onTap: () => _onTabTapped(index, state),
+          onTap: () {
+            if (isDisabled) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Faça o upload do CSV e da Imagem base para desbloquear esta aba.'),
+                  backgroundColor: Color(0xFFE8973A),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              return;
+            }
+            if (!isSelected) {
+              _onTabTapped(index, state);
+            }
+          },
           borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white.withValues(alpha: 0.04) : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isSelected ? Colors.white.withValues(alpha: 0.08) : Colors.transparent,
+              ),
+            ),
             child: Row(
               children: [
                 AnimatedContainer(
@@ -412,7 +446,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   // ─── PAINEL DE OPÇÕES ─────────────────────────────────────────────────
   Widget _buildOptionsPanel(GeneratorLoaded state) {
-    final titles = ['Upload de Arquivos', 'Texto e Variáveis', 'Aparência do Texto'];
+    final titles = ['Upload de Arquivos', 'Texto e Variáveis', 'Aparência do Texto', 'Configurar E-mails'];
     return Container(
       width: 360,
       color: const Color(0xFF111322),
@@ -421,7 +455,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            titles[_currentTab.clamp(0, 2)],
+            titles[_currentTab.clamp(0, 3)],
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
           ),
           const SizedBox(height: 24),
@@ -443,8 +477,166 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
       case 0: return _buildUploadContent(state);
       case 1: return _buildTextContent(state);
       case 2: return _buildAppearanceContent(state);
+      case 3: return _buildEmailContent(state);
       default: return const SizedBox();
     }
+  }
+
+  // ─── TAB 3: EMAIL ───────────────────────────────────────────────────────
+  Widget _buildEmailContent(GeneratorLoaded state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('Configurações Resend'),
+        const SizedBox(height: 12),
+        
+        TextFormField(
+          initialValue: state.resendApiKey,
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDecoration('Resend API Key (re_...)', Icons.key),
+          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(resendApiKey: val)),
+        ),
+        const SizedBox(height: 12),
+        
+        TextFormField(
+          initialValue: state.senderEmail,
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDecoration('E-mail do Remetente', Icons.alternate_email),
+          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(senderEmail: val)),
+        ),
+        const SizedBox(height: 24),
+
+        _buildSectionLabel('Mensagem'),
+        const SizedBox(height: 12),
+        
+        TextFormField(
+          initialValue: state.emailSubject,
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDecoration('Assunto', Icons.title),
+          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(emailSubject: val)),
+        ),
+        const SizedBox(height: 12),
+
+        TextFormField(
+          initialValue: state.emailBody,
+          style: const TextStyle(color: Colors.white),
+          maxLines: 4,
+          decoration: _inputDecoration('Corpo do E-mail', Icons.notes),
+          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(emailBody: val)),
+        ),
+        const SizedBox(height: 24),
+
+        _buildSectionLabel('Coluna de E-mail (Destinatários)'),
+        const SizedBox(height: 12),
+        
+        if (state.csvHeaders.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: state.csvHeaders.contains(state.emailColumn) 
+                  ? state.emailColumn 
+                  : state.csvHeaders.first,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF16192B),
+                style: const TextStyle(color: Colors.white),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.white54),
+                items: state.csvHeaders.map((header) {
+                  return DropdownMenuItem(
+                    value: header,
+                    child: Text(header),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    _bloc.add(UpdateEmailConfigEvent(emailColumn: val));
+                  }
+                },
+              ),
+            ),
+          )
+        else
+          const Text('Carregue um CSV primeiro.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          
+        const SizedBox(height: 40),
+        
+        // Progresso
+        if (state.isSendingEmails)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enviando... ${state.emailsSentCount} / ${state.emailsTotalCount}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: state.emailsTotalCount > 0 
+                      ? state.emailsSentCount / state.emailsTotalCount 
+                      : 0,
+                  backgroundColor: Colors.white10,
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFF7A78FF)),
+                  minHeight: 6,
+                ),
+              ),
+            ],
+          )
+        else
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: state.canSendEmails 
+                ? () {
+                    // Confirmação simples
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: const Color(0xFF16192B),
+                        title: const Text('Confirmar Envio', style: TextStyle(color: Colors.white)),
+                        content: const Text(
+                          'Deseja gerar e enviar os certificados por e-mail para todos os contatos válidos no CSV?',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _bloc.add(SendEmailsBatchEvent());
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF7A78FF),
+                            ),
+                            child: const Text('Sim, Enviar', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+                  } 
+                : null,
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text('Enviar Certificados'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7A78FF),
+                disabledBackgroundColor: Colors.white10,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   // ─── TAB 0: UPLOAD ────────────────────────────────────────────────────

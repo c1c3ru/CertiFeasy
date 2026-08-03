@@ -39,6 +39,16 @@ class GeneratorLoaded extends GeneratorState {
   /// Imagem do verso do certificado (usada nos modos backOnly e frontAndBack)
   final Uint8List? backTemplateImageBytes;
 
+  // ── Email ──────────────────────────────────────────────────────────────────
+  final String resendApiKey;
+  final String senderEmail;
+  final String emailSubject;
+  final String emailBody;
+  final String emailColumn;
+  final bool isSendingEmails;
+  final int emailsSentCount;
+  final int emailsTotalCount;
+
   GeneratorLoaded({
     required this.csvData,
     required this.csvHeaders,
@@ -55,6 +65,14 @@ class GeneratorLoaded extends GeneratorState {
     this.selectedCsvRowIndex = 0,
     this.pdfMode = PdfMode.frontOnly,
     this.backTemplateImageBytes,
+    this.resendApiKey = '',
+    this.senderEmail = '',
+    this.emailSubject = 'Seu Certificado',
+    this.emailBody = 'Olá,\n\nSegue em anexo o seu certificado.\n\nAtenciosamente,\nEquipe',
+    this.emailColumn = 'email',
+    this.isSendingEmails = false,
+    this.emailsSentCount = 0,
+    this.emailsTotalCount = 0,
   });
 
   GeneratorLoaded copyWith({
@@ -74,6 +92,14 @@ class GeneratorLoaded extends GeneratorState {
     PdfMode? pdfMode,
     Uint8List? backTemplateImageBytes,
     bool clearBackTemplate = false,
+    String? resendApiKey,
+    String? senderEmail,
+    String? emailSubject,
+    String? emailBody,
+    String? emailColumn,
+    bool? isSendingEmails,
+    int? emailsSentCount,
+    int? emailsTotalCount,
   }) {
     return GeneratorLoaded(
       csvData: csvData ?? this.csvData,
@@ -91,6 +117,14 @@ class GeneratorLoaded extends GeneratorState {
       selectedCsvRowIndex: selectedCsvRowIndex ?? this.selectedCsvRowIndex,
       pdfMode: pdfMode ?? this.pdfMode,
       backTemplateImageBytes: clearBackTemplate ? null : (backTemplateImageBytes ?? this.backTemplateImageBytes),
+      resendApiKey: resendApiKey ?? this.resendApiKey,
+      senderEmail: senderEmail ?? this.senderEmail,
+      emailSubject: emailSubject ?? this.emailSubject,
+      emailBody: emailBody ?? this.emailBody,
+      emailColumn: emailColumn ?? this.emailColumn,
+      isSendingEmails: isSendingEmails ?? this.isSendingEmails,
+      emailsSentCount: emailsSentCount ?? this.emailsSentCount,
+      emailsTotalCount: emailsTotalCount ?? this.emailsTotalCount,
     );
   }
 
@@ -104,9 +138,17 @@ class GeneratorLoaded extends GeneratorState {
 
   /// Verdadeiro quando os requisitos para gerar ZIP estão satisfeitos
   bool get canGenerateZip => mappedData.isNotEmpty && templateImageBytes != null;
+  
+  /// Verdadeiro quando os requisitos para envio de e-mails estão satisfeitos
+  bool get canSendEmails => canGeneratePdf && resendApiKey.isNotEmpty && senderEmail.isNotEmpty && emailColumn.isNotEmpty;
 }
 
 class GeneratorError extends GeneratorState {
   final String message;
   GeneratorError(this.message);
+}
+
+class GeneratorSuccess extends GeneratorState {
+  final String message;
+  GeneratorSuccess(this.message);
 }

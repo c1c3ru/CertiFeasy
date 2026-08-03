@@ -55,3 +55,29 @@ class UpdateProgressEvent extends GeneratorEvent {
   final double progress;
   UpdateProgressEvent(this.progress);
 }
+
+class UpdateEmailConfigEvent extends GeneratorEvent {
+  final String? resendApiKey;
+  final String? senderEmail;
+  final String? emailSubject;
+  final String? emailBody;
+  final String? emailColumn;
+
+  UpdateEmailConfigEvent({
+    this.resendApiKey,
+    this.senderEmail,
+    this.emailSubject,
+    this.emailBody,
+    this.emailColumn,
+  });
+}
+
+class LoadEmailConfigEvent extends GeneratorEvent {}
+
+class SendEmailsBatchEvent extends GeneratorEvent {}
+
+class UpdateEmailProgressEvent extends GeneratorEvent {
+  final int sentCount;
+  final int totalCount;
+  UpdateEmailProgressEvent(this.sentCount, this.totalCount);
+}

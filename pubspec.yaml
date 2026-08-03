@@ -29,6 +29,7 @@ dependencies:
   desktop_drop: ^0.7.0
   pdf: ^3.13.0
   printing: ^5.14.2
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

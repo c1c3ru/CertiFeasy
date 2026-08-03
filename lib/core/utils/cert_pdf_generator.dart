@@ -107,6 +107,51 @@ class CertPdfGenerator {
     return await pdf.save();
   }
 
+  static Future<Uint8List> generateSinglePdf({
+    required Uint8List frontImageBytes,
+    Uint8List? backImageBytes,
+    required PdfMode mode,
+  }) async {
+    final pdf = pw.Document();
+
+    final pageFormatFront = await _pdfImageSize(frontImageBytes);
+    final memoryImageFront = pw.MemoryImage(frontImageBytes);
+
+    if (mode != PdfMode.backOnly) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormatFront,
+          margin: pw.EdgeInsets.zero,
+          build: (pw.Context context) {
+            return pw.FullPage(
+              ignoreMargins: true,
+              child: pw.Image(memoryImageFront, fit: pw.BoxFit.cover),
+            );
+          },
+        ),
+      );
+    }
+
+    if (mode != PdfMode.frontOnly && backImageBytes != null) {
+      final pageFormatBack = await _pdfImageSize(backImageBytes);
+      final memoryImageBack = pw.MemoryImage(backImageBytes);
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormatBack,
+          margin: pw.EdgeInsets.zero,
+          build: (pw.Context context) {
+            return pw.FullPage(
+              ignoreMargins: true,
+              child: pw.Image(memoryImageBack, fit: pw.BoxFit.cover),
+            );
+          },
+        ),
+      );
+    }
+
+    return await pdf.save();
+  }
+
   // ─── Helpers privados ─────────────────────────────────────────────────────
 
   static Future<ui.Image> _decodeImage(Uint8List bytes) async {

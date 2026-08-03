@@ -7,10 +7,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:csv/csv.dart';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
-
 import '../../../core/utils/cert_generator.dart';
 import '../../../core/utils/cert_pdf_generator.dart';
+import '../../../core/services/preferences_service.dart';
+import '../../../core/services/email_service.dart';
 import 'generator_event.dart';
 import 'generator_state.dart';
 
@@ -25,6 +27,15 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     on<GenerateBatchEvent>(_onGenerateBatch);
     on<GeneratePdfBatchEvent>(_onGeneratePdfBatch);
     on<UpdateProgressEvent>(_onUpdateProgress);
+    
+    // Email events
+    on<LoadEmailConfigEvent>(_onLoadEmailConfig);
+    on<UpdateEmailConfigEvent>(_onUpdateEmailConfig);
+    on<SendEmailsBatchEvent>(_onSendEmailsBatch);
+    on<UpdateEmailProgressEvent>(_onUpdateEmailProgress);
+    
+    // Inicia carregando as configurações
+    add(LoadEmailConfigEvent());
   }
 
   // ─── Handlers ────────────────────────────────────────────────────────────
@@ -51,7 +62,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       final rows = CsvToListConverter(fieldDelimiter: delimiter).convert(event.csvContent!);
       if (rows.isNotEmpty) {
         newCsvData = rows;
-        newHeaders = rows.first.map((e) => e.toString().trim()).toList();
+        // Remove espaços e caracteres invisíveis (como BOM \ufeff) dos cabeçalhos
+        newHeaders = rows.first.map((e) => e.toString().replaceAll(RegExp(r'[\ufeff\u200b]'), '').trim()).toList();
         newMappedData = [
           for (int i = 1; i < rows.length; i++)
             {
@@ -59,8 +71,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
                 if (j < rows[i].length) newHeaders[j]: rows[i][j],
             }
         ];
-
       }
+      emit(GeneratorSuccess('CSV carregado com sucesso!'));
+    }
+
+    if (event.imageBytes != null) {
+      emit(GeneratorSuccess('Template carregado com sucesso!'));
     }
 
     emit(current.copyWith(
@@ -76,7 +92,10 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   void _onLoadBackImage(LoadBackImageEvent event, Emitter<GeneratorState> emit) {
     if (state is GeneratorLoaded) {
       final current = state as GeneratorLoaded;
-      emit(current.copyWith(backTemplateImageBytes: event.imageBytes));
+      emit(GeneratorSuccess('Template Verso carregado com sucesso!'));
+      emit(current.copyWith(
+        backTemplateImageBytes: event.imageBytes,
+      ));
     }
   }
 
@@ -125,6 +144,156 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     if (state is GeneratorLoaded) {
       final current = state as GeneratorLoaded;
       emit(current.copyWith(progress: event.progress));
+    }
+  }
+
+  // ─── EMAIL ───────────────────────────────────────────────────────────────
+  Future<void> _onLoadEmailConfig(LoadEmailConfigEvent event, Emitter<GeneratorState> emit) async {
+    if (state is GeneratorLoaded) {
+      final config = await PreferencesService.loadResendConfig();
+      emit((state as GeneratorLoaded).copyWith(
+        resendApiKey: config['apiKey'],
+        senderEmail: config['senderEmail'],
+        emailSubject: config['subject'],
+        emailBody: config['body'],
+        emailColumn: config['emailColumn'],
+      ));
+    }
+  }
+
+  Future<void> _onUpdateEmailConfig(UpdateEmailConfigEvent event, Emitter<GeneratorState> emit) async {
+    if (state is GeneratorLoaded) {
+      final current = state as GeneratorLoaded;
+      
+      final apiKey = event.resendApiKey ?? current.resendApiKey;
+      final senderEmail = event.senderEmail ?? current.senderEmail;
+      final subject = event.emailSubject ?? current.emailSubject;
+      final body = event.emailBody ?? current.emailBody;
+      final emailColumn = event.emailColumn ?? current.emailColumn;
+
+      await PreferencesService.saveResendConfig(
+        apiKey: apiKey,
+        senderEmail: senderEmail,
+        subject: subject,
+        body: body,
+        emailColumn: emailColumn,
+      );
+
+      emit(current.copyWith(
+        resendApiKey: apiKey,
+        senderEmail: senderEmail,
+        emailSubject: subject,
+        emailBody: body,
+        emailColumn: emailColumn,
+      ));
+    }
+  }
+
+  void _onUpdateEmailProgress(UpdateEmailProgressEvent event, Emitter<GeneratorState> emit) {
+    if (state is GeneratorLoaded) {
+      emit((state as GeneratorLoaded).copyWith(
+        emailsSentCount: event.sentCount,
+        emailsTotalCount: event.totalCount,
+      ));
+    }
+  }
+
+  Future<void> _onSendEmailsBatch(SendEmailsBatchEvent event, Emitter<GeneratorState> emit) async {
+    if (state is! GeneratorLoaded) return;
+    final current = state as GeneratorLoaded;
+
+    if (!current.canSendEmails) {
+      emit(GeneratorError('Faltam configurações de e-mail ou os requisitos do certificado (Imagem/CSV).'));
+      emit(current);
+      return;
+    }
+
+    emit(current.copyWith(
+      isSendingEmails: true, 
+      emailsSentCount: 0, 
+      emailsTotalCount: current.mappedData.length
+    ));
+
+    try {
+      int successCount = 0;
+      for (int i = 0; i < current.mappedData.length; i++) {
+        final row = current.mappedData[i];
+        final recipientEmail = row[current.emailColumn]?.toString().trim();
+        
+        if (recipientEmail == null || recipientEmail.isEmpty || !recipientEmail.contains('@')) {
+          // Pula caso não haja email válido nesta linha
+          add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
+          continue;
+        }
+
+        // 1. Gera a imagem do certificado apenas desta linha
+        final certBytes = await CertGenerator.generateCertificateImage(
+          await decodeImageFromList(current.templateImageBytes!),
+          row,
+          current.textTemplate,
+          current.fontSize,
+          current.fontFamily,
+          Color(current.fontColorValue),
+          textPositionX: current.textPositionX,
+          textPositionY: current.textPositionY,
+        );
+
+        // 2. Transforma a imagem gerada num PDF
+        Uint8List? backBytes;
+        if (current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null) {
+          backBytes = current.backTemplateImageBytes;
+        }
+
+        final pdfBytes = await CertPdfGenerator.generateSinglePdf(
+          frontImageBytes: certBytes,
+          backImageBytes: backBytes,
+          mode: current.pdfMode,
+        );
+
+        // Define o nome do arquivo pdf
+        String certName = 'certificado_$i.pdf';
+        if (current.csvHeaders.isNotEmpty && row.containsKey(current.csvHeaders.first)) {
+          certName = '${row[current.csvHeaders.first]}_certificado.pdf'.replaceAll(RegExp(r'[^a-zA-ZÀ-ÿ0-9_\-\.]'), '_');
+        }
+
+        // Substituir variáveis no corpo do email se houver
+        String parsedBody = current.emailBody;
+        row.forEach((key, value) {
+          parsedBody = parsedBody.replaceAll('{$key}', value.toString());
+        });
+
+        String parsedSubject = current.emailSubject;
+        row.forEach((key, value) {
+          parsedSubject = parsedSubject.replaceAll('{$key}', value.toString());
+        });
+
+        // 3. Envia via Resend
+        final success = await EmailService.sendEmailWithAttachment(
+          apiKey: current.resendApiKey,
+          senderEmail: current.senderEmail,
+          toEmail: recipientEmail,
+          subject: parsedSubject,
+          textBody: parsedBody,
+          attachmentName: certName,
+          attachmentBytes: pdfBytes,
+        );
+
+        if (success) successCount++;
+        
+        // Atualiza a barra de progresso após enviar
+        add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
+        
+        // Evitar rate limit severo (2 envios por seg na free tier do resend)
+        await Future.delayed(const Duration(milliseconds: 550));
+      }
+
+      final updatedState = state as GeneratorLoaded;
+      emit(updatedState.copyWith(isSendingEmails: false));
+      emit(GeneratorSuccess('E-mails processados: $successCount envios com sucesso.'));
+    } catch (e) {
+      final updatedState = state as GeneratorLoaded;
+      emit(GeneratorError('Erro durante envio de e-mails: $e'));
+      emit(updatedState.copyWith(isSendingEmails: false));
     }
   }
 
@@ -237,13 +406,30 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     GeneratorLoaded fallbackState,
   ) async {
     try {
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/$filename');
-      await file.writeAsBytes(bytes);
-      // ignore: deprecated_member_use
-      await Share.shareXFiles([XFile(file.path)], text: text);
+      if (Platform.isAndroid || Platform.isIOS) {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsBytes(bytes);
+        // ignore: deprecated_member_use
+        await Share.shareXFiles([XFile(file.path)], text: text);
+        emit(GeneratorSuccess('Arquivo gerado e pronto para compartilhamento!'));
+      } else {
+        // Desktop support (Linux, Windows, macOS)
+        // O FilePicker precisa rodar no contexto de UI, mas como estamos no BLoC, usamos a chamada da API
+        // Se a lib não suportar no isolado, isso pode falhar. No BLoC ainda estamos na thread principal.
+        String? outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Salvar $filename',
+          fileName: filename,
+        );
+
+        if (outputFile != null) {
+          final file = File(outputFile);
+          await file.writeAsBytes(bytes);
+          emit(GeneratorSuccess('Arquivo salvo com sucesso em:\n$outputFile'));
+        }
+      }
     } catch (e) {
-      emit(GeneratorError('Erro ao compartilhar: $e'));
+      emit(GeneratorError('Erro ao compartilhar ou salvar: $e'));
     }
   }
 }
