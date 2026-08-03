@@ -80,7 +80,7 @@ void main() {
     
     // Simulate CSV and image load
     bloc.add(LoadFilesEvent(
-      csvContent: 'nome;horas\nTeste;10',
+      csvContent: 'nome;evento;data;horas;email\nTeste;Tech;2023;10;t@t.com',
       imageBytes: dummyImageBytes,
     ));
     

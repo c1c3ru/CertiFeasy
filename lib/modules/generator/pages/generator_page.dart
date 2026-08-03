@@ -56,6 +56,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   final _textTemplateController =
       TextEditingController(text: 'Certificamos que {nome} participou por {horas} horas.');
+  final _backTextTemplateController =
+      TextEditingController(text: 'Informações adicionais do verso...');
+      
+  bool _isEditingBack = false;
 
   @override
   void initState() {
@@ -73,6 +77,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   @override
   void dispose() {
     _textTemplateController.dispose();
+    _backTextTemplateController.dispose();
     _panelAnimController.dispose();
     super.dispose();
   }
@@ -998,9 +1003,15 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   // ─── TAB 1: TEXTO & VARIÁVEIS ─────────────────────────────────────────
   Widget _buildTextContent(GeneratorLoaded state) {
+    final controller = _isEditingBack ? _backTextTemplateController : _textTemplateController;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (state.pdfMode != PdfMode.frontOnly) ...[
+          _buildFaceToggle(),
+          const SizedBox(height: 16),
+        ],
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -1030,16 +1041,19 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             runSpacing: 6,
             children: state.csvHeaders.map((h) => InkWell(
               onTap: () {
-                final text = _textTemplateController.text;
-                final selection = _textTemplateController.selection;
+                final text = controller.text;
+                final selection = controller.selection;
                 final tag = '{$h}';
                 final newText = text.replaceRange(
                   selection.start < 0 ? text.length : selection.start,
                   selection.end < 0 ? text.length : selection.end,
                   tag,
                 );
-                _textTemplateController.text = newText;
-                _bloc.add(UpdateTemplateEvent(textTemplate: newText));
+                controller.text = newText;
+                _bloc.add(UpdateTemplateEvent(
+                  textTemplate: newText,
+                  isBack: _isEditingBack,
+                ));
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
@@ -1063,7 +1077,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           const SizedBox(height: 20),
         ],
         TextField(
-          controller: _textTemplateController,
+          controller: controller,
           maxLines: 6,
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
@@ -1085,7 +1099,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             hintStyle: const TextStyle(color: Colors.white24),
             contentPadding: const EdgeInsets.all(14),
           ),
-          onChanged: (val) => _bloc.add(UpdateTemplateEvent(textTemplate: val)),
+          onChanged: (val) => _bloc.add(UpdateTemplateEvent(textTemplate: val, isBack: _isEditingBack)),
         ),
       ],
     );
@@ -1093,9 +1107,17 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   // ─── TAB 2: APARÊNCIA ─────────────────────────────────────────────────
   Widget _buildAppearanceContent(GeneratorLoaded state) {
+    final currentFontSize = _isEditingBack ? state.backFontSize : state.fontSize;
+    final currentFontFamily = _isEditingBack ? state.backFontFamily : state.fontFamily;
+    final currentFontColor = _isEditingBack ? state.backFontColorValue : state.fontColorValue;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (state.pdfMode != PdfMode.frontOnly) ...[
+          _buildFaceToggle(),
+          const SizedBox(height: 16),
+        ],
         // ── Tamanho da Fonte ──
         _buildSectionLabel('Tamanho da Fonte'),
         const SizedBox(height: 8),
@@ -1111,10 +1133,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                   trackHeight: 4,
                 ),
                 child: Slider(
-                  value: state.fontSize,
+                  value: currentFontSize,
                   min: 10,
                   max: 200,
-                  onChanged: (val) => _bloc.add(UpdateTemplateEvent(fontSize: val)),
+                  onChanged: (val) => _bloc.add(UpdateTemplateEvent(fontSize: val, isBack: _isEditingBack)),
                 ),
               ),
             ),
@@ -1126,7 +1148,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                state.fontSize.toStringAsFixed(0),
+                currentFontSize.toStringAsFixed(0),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Color(0xFF7A78FF), fontWeight: FontWeight.w700, fontSize: 13),
               ),
@@ -1146,7 +1168,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             border: Border.all(color: Colors.white12),
           ),
           child: DropdownButton<String>(
-            value: _fontOptions.contains(state.fontFamily) ? state.fontFamily : _fontOptions.first,
+            value: _fontOptions.contains(currentFontFamily) ? currentFontFamily : _fontOptions.first,
             isExpanded: true,
             dropdownColor: const Color(0xFF16192B),
             underline: const SizedBox(),
@@ -1221,10 +1243,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                   trackHeight: 4,
                 ),
                 child: Slider(
-                  value: state.textPositionX,
+                  value: _isEditingBack ? state.backTextPositionX : state.textPositionX,
                   min: 0.05,
                   max: 0.95,
-                  onChanged: (val) => _bloc.add(UpdateTextPositionEvent(dx: val)),
+                  onChanged: (val) => _bloc.add(UpdateTextPositionEvent(dx: val, isBack: _isEditingBack)),
                 ),
               ),
             ),
@@ -1248,10 +1270,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                   trackHeight: 4,
                 ),
                 child: Slider(
-                  value: state.textPositionY,
+                  value: _isEditingBack ? state.backTextPositionY : state.textPositionY,
                   min: 0.05,
                   max: 0.95,
-                  onChanged: (val) => _bloc.add(UpdateTextPositionEvent(dy: val)),
+                  onChanged: (val) => _bloc.add(UpdateTextPositionEvent(dy: val, isBack: _isEditingBack)),
                 ),
               ),
             ),
@@ -1265,7 +1287,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           alignment: Alignment.center,
           child: TextButton.icon(
             onPressed: () {
-              _bloc.add(UpdateTextPositionEvent(dx: 0.5, dy: 0.5));
+              _bloc.add(UpdateTextPositionEvent(dx: 0.5, dy: 0.5, isBack: _isEditingBack));
             },
             icon: const Icon(Icons.center_focus_strong_rounded, size: 14, color: Colors.white38),
             label: const Text('Centralizar', style: TextStyle(color: Colors.white38, fontSize: 12)),
@@ -1284,6 +1306,63 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         fontSize: 12,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  Widget _buildFaceToggle() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF16192B),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _isEditingBack = false),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: !_isEditingBack ? const Color(0xFF7A78FF).withValues(alpha: 0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Frente',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: !_isEditingBack ? const Color(0xFF7A78FF) : Colors.white54,
+                    fontWeight: !_isEditingBack ? FontWeight.w600 : FontWeight.w400,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _isEditingBack = true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isEditingBack ? const Color(0xFF7A78FF).withValues(alpha: 0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Verso',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _isEditingBack ? const Color(0xFF7A78FF) : Colors.white54,
+                    fontWeight: _isEditingBack ? FontWeight.w600 : FontWeight.w400,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1316,7 +1395,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           ),
           // Área do certificado
           Expanded(
-            child: state.templateImageBytes == null
+            child: (!_isEditingBack && state.templateImageBytes == null) || (_isEditingBack && state.backTemplateImageBytes == null)
                 ? _buildEmptyPreview()
                 : _buildCheckerboard(_buildInteractivePreview(state)),
           ),
@@ -1403,10 +1482,18 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     final idx = state.selectedCsvRowIndex.clamp(0, state.mappedData.isEmpty ? 0 : state.mappedData.length - 1);
     final rowData = state.mappedData.isEmpty ? <String, dynamic>{} : state.mappedData[idx];
 
-    String previewText = state.textTemplate;
+    final currentTemplate = _isEditingBack ? state.backTextTemplate : state.textTemplate;
+    String previewText = currentTemplate;
     rowData.forEach((key, value) {
       previewText = previewText.replaceAll('{$key}', value.toString());
     });
+
+    final currentImageBytes = _isEditingBack ? state.backTemplateImageBytes : state.templateImageBytes;
+    final currentPosX = _isEditingBack ? state.backTextPositionX : state.textPositionX;
+    final currentPosY = _isEditingBack ? state.backTextPositionY : state.textPositionY;
+    final currentFontFamily = _isEditingBack ? state.backFontFamily : state.fontFamily;
+    final currentFontSize = _isEditingBack ? state.backFontSize : state.fontSize;
+    final currentFontColor = _isEditingBack ? state.backFontColorValue : state.fontColorValue;
 
     return InteractiveViewer(
       minScale: 0.1,
@@ -1416,7 +1503,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           builder: (context, constraints) {
             return Stack(
               children: [
-                Image.memory(state.templateImageBytes!, fit: BoxFit.contain),
+                Image.memory(currentImageBytes!, fit: BoxFit.contain),
                 // Posicionamento relativo ao tamanho do container de preview
                 Positioned.fill(
                   child: LayoutBuilder(
@@ -1424,8 +1511,8 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                       return Stack(
                         children: [
                           Positioned(
-                            left: box.maxWidth * state.textPositionX - 1,
-                            top: box.maxHeight * state.textPositionY - 1,
+                            left: box.maxWidth * currentPosX - 1,
+                            top: box.maxHeight * currentPosY - 1,
                             child: FractionalTranslation(
                               translation: const Offset(-0.5, -0.5),
                               child: Container(
@@ -1434,9 +1521,9 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                                   previewText,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    fontFamily: state.fontFamily,
-                                    fontSize: state.fontSize,
-                                    color: Color(state.fontColorValue),
+                                    fontFamily: currentFontFamily,
+                                    fontSize: currentFontSize,
+                                    color: Color(currentFontColor),
                                     shadows: const [
                                       Shadow(blurRadius: 2, color: Colors.black26, offset: Offset(1, 1)),
                                     ],

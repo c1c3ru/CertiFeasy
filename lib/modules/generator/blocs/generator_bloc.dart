@@ -68,6 +68,16 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         newCsvData = rows;
         // Remove espaços e caracteres invisíveis (como BOM \ufeff) dos cabeçalhos
         newHeaders = rows.first.map((e) => e.toString().replaceAll(RegExp(r'[\ufeff\u200b]'), '').trim()).toList();
+        
+        final requiredHeaders = ['nome', 'evento', 'data', 'horas', 'email'];
+        final lowerHeaders = newHeaders.map((e) => e.toLowerCase()).toList();
+        final missingHeaders = requiredHeaders.where((h) => !lowerHeaders.contains(h)).toList();
+        
+        if (missingHeaders.isNotEmpty) {
+          emit(GeneratorError('O CSV deve conter as colunas obrigatórias: ${missingHeaders.join(', ')}'));
+          return;
+        }
+
         newMappedData = [
           for (int i = 1; i < rows.length; i++)
             {
@@ -106,22 +116,38 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   void _onUpdateTemplate(UpdateTemplateEvent event, Emitter<GeneratorState> emit) {
     if (state is GeneratorLoaded) {
       final current = state as GeneratorLoaded;
-      emit(current.copyWith(
-        textTemplate: event.textTemplate ?? current.textTemplate,
-        fontSize: event.fontSize ?? current.fontSize,
-        fontFamily: event.fontFamily ?? current.fontFamily,
-        fontColorValue: event.fontColorValue ?? current.fontColorValue,
-      ));
+      if (event.isBack) {
+        emit(current.copyWith(
+          backTextTemplate: event.textTemplate ?? current.backTextTemplate,
+          backFontSize: event.fontSize ?? current.backFontSize,
+          backFontFamily: event.fontFamily ?? current.backFontFamily,
+          backFontColorValue: event.fontColorValue ?? current.backFontColorValue,
+        ));
+      } else {
+        emit(current.copyWith(
+          textTemplate: event.textTemplate ?? current.textTemplate,
+          fontSize: event.fontSize ?? current.fontSize,
+          fontFamily: event.fontFamily ?? current.fontFamily,
+          fontColorValue: event.fontColorValue ?? current.fontColorValue,
+        ));
+      }
     }
   }
 
   void _onUpdateTextPosition(UpdateTextPositionEvent event, Emitter<GeneratorState> emit) {
     if (state is GeneratorLoaded) {
       final current = state as GeneratorLoaded;
-      emit(current.copyWith(
-        textPositionX: event.dx?.clamp(0.0, 1.0) ?? current.textPositionX,
-        textPositionY: event.dy?.clamp(0.0, 1.0) ?? current.textPositionY,
-      ));
+      if (event.isBack) {
+        emit(current.copyWith(
+          backTextPositionX: event.dx?.clamp(0.0, 1.0) ?? current.backTextPositionX,
+          backTextPositionY: event.dy?.clamp(0.0, 1.0) ?? current.backTextPositionY,
+        ));
+      } else {
+        emit(current.copyWith(
+          textPositionX: event.dx?.clamp(0.0, 1.0) ?? current.textPositionX,
+          textPositionY: event.dy?.clamp(0.0, 1.0) ?? current.textPositionY,
+        ));
+      }
     }
   }
 
@@ -319,12 +345,20 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       'data': current.mappedData,
       'headers': current.csvHeaders,
       'imgBytes': current.templateImageBytes,
+      'backImgBytes': current.backTemplateImageBytes,
       'textTemplate': current.textTemplate,
       'fontSize': current.fontSize,
       'fontFamily': current.fontFamily,
       'fontColor': current.fontColorValue,
       'textPositionX': current.textPositionX,
       'textPositionY': current.textPositionY,
+      'backTextTemplate': current.backTextTemplate,
+      'backFontSize': current.backFontSize,
+      'backFontFamily': current.backFontFamily,
+      'backFontColor': current.backFontColorValue,
+      'backTextPositionX': current.backTextPositionX,
+      'backTextPositionY': current.backTextPositionY,
+      'pdfMode': current.pdfMode.name,
     };
 
     await Isolate.spawn(_generateZipWorker, args);
@@ -375,6 +409,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       'fontColor': current.fontColorValue,
       'textPositionX': current.textPositionX,
       'textPositionY': current.textPositionY,
+      'backTextTemplate': current.backTextTemplate,
+      'backFontSize': current.backFontSize,
+      'backFontFamily': current.backFontFamily,
+      'backFontColor': current.backFontColorValue,
+      'backTextPositionX': current.backTextPositionX,
+      'backTextPositionY': current.backTextPositionY,
       'pdfMode': current.pdfMode.name,
     };
 
@@ -452,32 +492,73 @@ void _generateZipWorker(Map<String, dynamic> args) async {
     final double textPositionX = args['textPositionX'] ?? 0.5;
     final double textPositionY = args['textPositionY'] ?? 0.5;
 
-    final codec = await ui.instantiateImageCodec(imgBytes);
-    final frameInfo = await codec.getNextFrame();
-    final ui.Image templateImage = frameInfo.image;
+    final Uint8List? backImgBytes = args['backImgBytes'];
+    final String backTextTemplate = args['backTextTemplate'] ?? '';
+    final double backFontSize = args['backFontSize'] ?? 32.0;
+    final String backFontFamily = args['backFontFamily'] ?? 'Roboto';
+    final int backFontColor = args['backFontColor'] ?? 0xFF000000;
+    final double backTextPositionX = args['backTextPositionX'] ?? 0.5;
+    final double backTextPositionY = args['backTextPositionY'] ?? 0.5;
+    final String pdfModeStr = args['pdfMode'] ?? 'frontOnly';
+    
+    final bool generateFront = pdfModeStr != 'backOnly';
+    final bool generateBack = pdfModeStr != 'frontOnly' && backImgBytes != null;
+
+    ui.Image? templateImage;
+    if (generateFront) {
+      final codec = await ui.instantiateImageCodec(imgBytes);
+      final frameInfo = await codec.getNextFrame();
+      templateImage = frameInfo.image;
+    }
+
+    ui.Image? backTemplateImage;
+    if (generateBack) {
+      final codec = await ui.instantiateImageCodec(backImgBytes!);
+      final frameInfo = await codec.getNextFrame();
+      backTemplateImage = frameInfo.image;
+    }
 
     final archive = Archive();
 
     for (int i = 0; i < data.length; i++) {
       final row = data[i];
-      final certBytes = await CertGenerator.generateCertificateImage(
-        templateImage,
-        row,
-        textTemplate,
-        fontSize,
-        fontFamily,
-        Color(fontColor),
-        textPositionX: textPositionX,
-        textPositionY: textPositionY,
-      );
-
-      String certName = 'certificado_$i';
+      
+      String baseName = 'certificado_$i';
       if (headers.isNotEmpty && row.containsKey(headers.first)) {
-        certName = row[headers.first]?.toString() ?? certName;
+        baseName = row[headers.first]?.toString() ?? baseName;
       }
-      final cleanName = certName.replaceAll(RegExp(r'[^a-zA-ZÀ-ÿ0-9_\-]'), '_');
+      final cleanName = baseName.replaceAll(RegExp(r'[^a-zA-ZÀ-ÿ0-9_\-]'), '_');
 
-      archive.addFile(ArchiveFile('$cleanName.png', certBytes.length, certBytes));
+      if (generateFront && templateImage != null) {
+        final certBytes = await CertGenerator.generateCertificateImage(
+          templateImage,
+          row,
+          textTemplate,
+          fontSize,
+          fontFamily,
+          Color(fontColor),
+          textPositionX: textPositionX,
+          textPositionY: textPositionY,
+        );
+        final fileName = generateBack ? '${cleanName}_frente.png' : '$cleanName.png';
+        archive.addFile(ArchiveFile(fileName, certBytes.length, certBytes));
+      }
+
+      if (generateBack && backTemplateImage != null) {
+        final backBytes = await CertGenerator.generateCertificateImage(
+          backTemplateImage,
+          row,
+          backTextTemplate,
+          backFontSize,
+          backFontFamily,
+          Color(backFontColor),
+          textPositionX: backTextPositionX,
+          textPositionY: backTextPositionY,
+        );
+        final fileName = generateFront ? '${cleanName}_verso.png' : '$cleanName.png';
+        archive.addFile(ArchiveFile(fileName, backBytes.length, backBytes));
+      }
+
       sendPort.send((i + 1) / data.length);
     }
 

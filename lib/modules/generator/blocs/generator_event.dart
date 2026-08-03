@@ -19,12 +19,14 @@ class UpdateTemplateEvent extends GeneratorEvent {
   final double? fontSize;
   final String? fontFamily;
   final int? fontColorValue;
+  final bool isBack;
 
   UpdateTemplateEvent({
     this.textTemplate,
     this.fontSize,
     this.fontFamily,
     this.fontColorValue,
+    this.isBack = false,
   });
 }
 
@@ -32,7 +34,8 @@ class UpdateTextPositionEvent extends GeneratorEvent {
   /// Valores normalizados entre 0.0 e 1.0
   final double? dx;
   final double? dy;
-  UpdateTextPositionEvent({this.dx, this.dy});
+  final bool isBack;
+  UpdateTextPositionEvent({this.dx, this.dy, this.isBack = false});
 }
 
 class SelectPreviewRowEvent extends GeneratorEvent {

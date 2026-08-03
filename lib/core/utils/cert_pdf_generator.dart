@@ -37,6 +37,12 @@ class CertPdfGenerator {
     required int fontColor,
     required double textPositionX,
     required double textPositionY,
+    String backTextTemplate = '',
+    double backFontSize = 32.0,
+    String backFontFamily = 'Roboto',
+    int backFontColor = 0xFF000000,
+    double backTextPositionX = 0.5,
+    double backTextPositionY = 0.5,
     required PdfMode mode,
     required SendPort sendPort,
   }) async {
@@ -86,11 +92,20 @@ class CertPdfGenerator {
 
     // Páginas de VERSO
     if (mode != PdfMode.frontOnly && backTemplate != null && backImgBytes != null) {
-      final backPng = backImgBytes; // verso é estático para todos
-      final backImg = pw.MemoryImage(backPng);
-      final backSize = await _pdfImageSize(backPng);
-
       for (int i = 0; i < data.length; i++) {
+        final backPng = await CertGenerator.generateCertificateImage(
+          backTemplate,
+          data[i],
+          backTextTemplate,
+          backFontSize,
+          backFontFamily,
+          ui.Color(backFontColor),
+          textPositionX: backTextPositionX,
+          textPositionY: backTextPositionY,
+        );
+        final backImg = pw.MemoryImage(backPng);
+        final backSize = await _pdfImageSize(backPng);
+
         pdf.addPage(pw.Page(
           pageFormat: backSize,
           margin: pw.EdgeInsets.zero,
@@ -192,6 +207,12 @@ void generatePdfWorker(Map<String, dynamic> args) async {
       fontColor: args['fontColor'],
       textPositionX: args['textPositionX'] ?? 0.5,
       textPositionY: args['textPositionY'] ?? 0.5,
+      backTextTemplate: args['backTextTemplate'] ?? '',
+      backFontSize: args['backFontSize'] ?? 32.0,
+      backFontFamily: args['backFontFamily'] ?? 'Roboto',
+      backFontColor: args['backFontColor'] ?? 0xFF000000,
+      backTextPositionX: args['backTextPositionX'] ?? 0.5,
+      backTextPositionY: args['backTextPositionY'] ?? 0.5,
       mode: PdfMode.values.byName(args['pdfMode']),
       sendPort: sendPort,
     );

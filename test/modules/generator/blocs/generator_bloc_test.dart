@@ -32,12 +32,12 @@ void main() {
     blocTest<GeneratorBloc, GeneratorState>(
       'emits GeneratorLoaded when LoadFilesEvent is added with CSV',
       build: () => generatorBloc,
-      act: (bloc) => bloc.add(LoadFilesEvent(csvContent: 'nome;horas\nJoão;8\nMaria;16')),
+      act: (bloc) => bloc.add(LoadFilesEvent(csvContent: 'nome;evento;data;horas;email\nJoão;Tech;2023;8;a@b.com')),
       skip: 1, // skips the GeneratorSuccess message
       expect: () => [
         isA<GeneratorLoaded>()
-            .having((s) => s.csvHeaders, 'headers', ['nome', 'horas'])
-            .having((s) => s.mappedData.length, 'data length', 2)
+            .having((s) => s.csvHeaders, 'headers', ['nome', 'evento', 'data', 'horas', 'email'])
+            .having((s) => s.mappedData.length, 'data length', 1)
             .having((s) => s.mappedData[0]['nome'], 'first row nome', 'João')
       ],
     );
@@ -45,12 +45,12 @@ void main() {
     blocTest<GeneratorBloc, GeneratorState>(
       'decodes CSV correctly when it has Latin-1 encoding fallbacks (simulated via string)',
       build: () => generatorBloc,
-      act: (bloc) => bloc.add(LoadFilesEvent(csvContent: 'name,age\nJohn,30\nJane,25')),
+      act: (bloc) => bloc.add(LoadFilesEvent(csvContent: 'nome,evento,data,horas,email\nJohn,E,D,30,j@b.com')),
       skip: 1,
       expect: () => [
         isA<GeneratorLoaded>()
-            .having((s) => s.csvHeaders, 'headers', ['name', 'age'])
-            .having((s) => s.mappedData.length, 'data length', 2)
+            .having((s) => s.csvHeaders, 'headers', ['nome', 'evento', 'data', 'horas', 'email'])
+            .having((s) => s.mappedData.length, 'data length', 1)
       ],
     );
 

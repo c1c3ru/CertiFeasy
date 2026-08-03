@@ -22,12 +22,18 @@ class GeneratorLoaded extends GeneratorState {
   final double fontSize;
   final String fontFamily;
   final int fontColorValue;
+  final String backTextTemplate;
+  final double backFontSize;
+  final String backFontFamily;
+  final int backFontColorValue;
   final double progress;
   final bool isGenerating;
 
   /// Posição normalizada do texto (0.0 = esquerda/topo, 1.0 = direita/baixo)
   final double textPositionX;
   final double textPositionY;
+  final double backTextPositionX;
+  final double backTextPositionY;
 
   /// Índice da linha do CSV exibida na prévia
   final int selectedCsvRowIndex;
@@ -58,10 +64,16 @@ class GeneratorLoaded extends GeneratorState {
     this.fontSize = 48.0,
     this.fontFamily = 'Roboto',
     this.fontColorValue = 0xFF000000,
+    this.backTextTemplate = 'Informações adicionais do verso...',
+    this.backFontSize = 32.0,
+    this.backFontFamily = 'Roboto',
+    this.backFontColorValue = 0xFF000000,
     this.progress = 0.0,
     this.isGenerating = false,
     this.textPositionX = 0.5,
     this.textPositionY = 0.5,
+    this.backTextPositionX = 0.5,
+    this.backTextPositionY = 0.5,
     this.selectedCsvRowIndex = 0,
     this.pdfMode = PdfMode.frontOnly,
     this.backTemplateImageBytes,
@@ -84,10 +96,16 @@ class GeneratorLoaded extends GeneratorState {
     double? fontSize,
     String? fontFamily,
     int? fontColorValue,
+    String? backTextTemplate,
+    double? backFontSize,
+    String? backFontFamily,
+    int? backFontColorValue,
     double? progress,
     bool? isGenerating,
     double? textPositionX,
     double? textPositionY,
+    double? backTextPositionX,
+    double? backTextPositionY,
     int? selectedCsvRowIndex,
     PdfMode? pdfMode,
     Uint8List? backTemplateImageBytes,
@@ -110,10 +128,16 @@ class GeneratorLoaded extends GeneratorState {
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
       fontColorValue: fontColorValue ?? this.fontColorValue,
+      backTextTemplate: backTextTemplate ?? this.backTextTemplate,
+      backFontSize: backFontSize ?? this.backFontSize,
+      backFontFamily: backFontFamily ?? this.backFontFamily,
+      backFontColorValue: backFontColorValue ?? this.backFontColorValue,
       progress: progress ?? this.progress,
       isGenerating: isGenerating ?? this.isGenerating,
       textPositionX: textPositionX ?? this.textPositionX,
       textPositionY: textPositionY ?? this.textPositionY,
+      backTextPositionX: backTextPositionX ?? this.backTextPositionX,
+      backTextPositionY: backTextPositionY ?? this.backTextPositionY,
       selectedCsvRowIndex: selectedCsvRowIndex ?? this.selectedCsvRowIndex,
       pdfMode: pdfMode ?? this.pdfMode,
       backTemplateImageBytes: clearBackTemplate ? null : (backTemplateImageBytes ?? this.backTemplateImageBytes),
