@@ -47,10 +47,11 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     List<Map<String, dynamic>> newMappedData = current.mappedData;
 
     if (event.csvContent != null) {
-      final rows = const CsvToListConverter().convert(event.csvContent!);
+      final delimiter = event.csvContent!.split('\n').first.contains(';') ? ';' : ',';
+      final rows = CsvToListConverter(fieldDelimiter: delimiter).convert(event.csvContent!);
       if (rows.isNotEmpty) {
         newCsvData = rows;
-        newHeaders = rows.first.map((e) => e.toString()).toList();
+        newHeaders = rows.first.map((e) => e.toString().trim()).toList();
         newMappedData = [
           for (int i = 1; i < rows.length; i++)
             {
@@ -58,6 +59,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
                 if (j < rows[i].length) newHeaders[j]: rows[i][j],
             }
         ];
+
       }
     }
 

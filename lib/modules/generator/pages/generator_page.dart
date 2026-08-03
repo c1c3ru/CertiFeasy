@@ -104,19 +104,40 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     }
   }
 
-  /// Gera e compartilha um modelo CSV com as colunas padrão
+  /// Gera e salva um modelo CSV com as colunas padrão
   Future<void> _downloadCsvTemplate() async {
-    const csvContent = 'nome,horas,evento\nJoão Silva,8,Seminário de Inovação\nMaria Santos,16,Workshop de Flutter';
+    const csvContent = 'nome;horas;evento\nJoão Silva;8;Seminário de Inovação\nMaria Santos;16;Workshop de Flutter';
     try {
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/modelo_certificados.csv');
-      await file.writeAsString(csvContent);
-      // ignore: deprecated_member_use
-      await Share.shareXFiles([XFile(file.path)], text: 'Modelo de CSV para o CertiFeasy');
+      if (Platform.isAndroid || Platform.isIOS) {
+        // No mobile, geramos um arquivo temporário e abrimos a janela de compartilhamento nativa
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/modelo_certificados.csv');
+        await file.writeAsString(csvContent);
+        // ignore: deprecated_member_use
+        await Share.shareXFiles([XFile(file.path)], text: 'Modelo de CSV para o CertiFeasy');
+      } else {
+        // No Desktop (Linux/Win/Mac), abrimos a janela clássica de 'Salvar como...'
+        String? outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Salvar Modelo CSV',
+          fileName: 'modelo_certificados.csv',
+          type: FileType.custom,
+          allowedExtensions: ['csv'],
+        );
+
+        if (outputFile != null) {
+          final file = File(outputFile);
+          await file.writeAsString(csvContent);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Modelo CSV salvo com sucesso!'), backgroundColor: Colors.green),
+            );
+          }
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao baixar modelo: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text('Erro ao salvar modelo: $e'), backgroundColor: Colors.redAccent),
         );
       }
     }
