@@ -78,7 +78,7 @@ class GeneratorLoaded extends GeneratorState {
     this.pdfMode = PdfMode.frontOnly,
     this.backTemplateImageBytes,
     this.resendApiKey = '',
-    this.senderEmail = '',
+    this.senderEmail = 'cti.maracanau@ifce.edu.br',
     this.emailSubject = 'Seu Certificado',
     this.emailBody = 'Olá,\n\nSegue em anexo o seu certificado.\n\nAtenciosamente,\nEquipe',
     this.emailColumn = 'email',
@@ -164,7 +164,7 @@ class GeneratorLoaded extends GeneratorState {
   bool get canGenerateZip => mappedData.isNotEmpty && templateImageBytes != null;
   
   /// Verdadeiro quando os requisitos para envio de e-mails estão satisfeitos
-  bool get canSendEmails => canGeneratePdf && resendApiKey.isNotEmpty && senderEmail.isNotEmpty && emailColumn.isNotEmpty;
+  bool get canSendEmails => canGeneratePdf && senderEmail.isNotEmpty && emailColumn.isNotEmpty;
 }
 
 class GeneratorError extends GeneratorState {

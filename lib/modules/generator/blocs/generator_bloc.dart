@@ -299,7 +299,6 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
         // 3. Envia via Resend
         final success = await EmailService.sendEmailWithAttachment(
-          apiKey: current.resendApiKey,
           senderEmail: current.senderEmail,
           toEmail: recipientEmail,
           subject: parsedSubject,

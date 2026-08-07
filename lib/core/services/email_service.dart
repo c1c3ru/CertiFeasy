@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 
 class EmailService {
   static Future<bool> sendEmailWithAttachment({
-    required String apiKey,
     required String senderEmail,
     required String toEmail,
     required String subject,
@@ -12,11 +11,10 @@ class EmailService {
     required String attachmentName,
     required Uint8List attachmentBytes,
   }) async {
-    final url = Uri.parse('https://api.resend.com/emails');
+    final url = kIsWeb ? Uri.parse('/api/resend') : Uri.parse('https://api.resend.com/emails');
     final response = await http.post(
       url,
       headers: {
-        'Authorization': 'Bearer $apiKey',
         'Content-Type': 'application/json',
       },
       body: jsonEncode({

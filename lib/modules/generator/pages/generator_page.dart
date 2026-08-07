@@ -558,13 +558,6 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         _buildSectionLabel('Configurações Resend'),
         const SizedBox(height: 12),
         
-        TextFormField(
-          initialValue: state.resendApiKey,
-          style: const TextStyle(color: Colors.white),
-          decoration: _inputDecoration('Resend API Key (re_...)', Icons.key),
-          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(resendApiKey: val)),
-        ),
-        const SizedBox(height: 12),
         
         TextFormField(
           initialValue: state.senderEmail,
