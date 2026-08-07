@@ -180,9 +180,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   // ─── EMAIL ───────────────────────────────────────────────────────────────
   Future<void> _onLoadEmailConfig(LoadEmailConfigEvent event, Emitter<GeneratorState> emit) async {
     if (state is GeneratorLoaded) {
-      final config = await PreferencesService.loadResendConfig();
+      final config = await PreferencesService.loadEmailConfig();
       emit((state as GeneratorLoaded).copyWith(
-        resendApiKey: config['apiKey'],
         senderEmail: config['senderEmail'],
         emailSubject: config['subject'],
         emailBody: config['body'],
@@ -195,14 +194,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     if (state is GeneratorLoaded) {
       final current = state as GeneratorLoaded;
       
-      final apiKey = event.resendApiKey ?? current.resendApiKey;
       final senderEmail = event.senderEmail ?? current.senderEmail;
       final subject = event.emailSubject ?? current.emailSubject;
       final body = event.emailBody ?? current.emailBody;
       final emailColumn = event.emailColumn ?? current.emailColumn;
 
-      await PreferencesService.saveResendConfig(
-        apiKey: apiKey,
+      await PreferencesService.saveEmailConfig(
         senderEmail: senderEmail,
         subject: subject,
         body: body,
@@ -210,7 +207,6 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       );
 
       emit(current.copyWith(
-        resendApiKey: apiKey,
         senderEmail: senderEmail,
         emailSubject: subject,
         emailBody: body,
@@ -297,7 +293,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           parsedSubject = parsedSubject.replaceAll('{$key}', value.toString());
         });
 
-        // 3. Envia via Resend
+        // 3. Envia via Gmail SMTP
         final success = await EmailService.sendEmailWithAttachment(
           senderEmail: current.senderEmail,
           toEmail: recipientEmail,
@@ -312,7 +308,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         // Atualiza a barra de progresso após enviar
         add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
         
-        // Evitar rate limit severo (2 envios por seg na free tier do resend)
+        // Evitar rate limit (Gmail tem limite de 500 envios/dia)
         await Future.delayed(const Duration(milliseconds: 550));
       }
 

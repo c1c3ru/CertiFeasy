@@ -60,14 +60,12 @@ class UpdateProgressEvent extends GeneratorEvent {
 }
 
 class UpdateEmailConfigEvent extends GeneratorEvent {
-  final String? resendApiKey;
   final String? senderEmail;
   final String? emailSubject;
   final String? emailBody;
   final String? emailColumn;
 
   UpdateEmailConfigEvent({
-    this.resendApiKey,
     this.senderEmail,
     this.emailSubject,
     this.emailBody,

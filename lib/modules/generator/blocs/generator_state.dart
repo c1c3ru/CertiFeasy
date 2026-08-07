@@ -46,7 +46,6 @@ class GeneratorLoaded extends GeneratorState {
   final Uint8List? backTemplateImageBytes;
 
   // ── Email ──────────────────────────────────────────────────────────────────
-  final String resendApiKey;
   final String senderEmail;
   final String emailSubject;
   final String emailBody;
@@ -77,7 +76,6 @@ class GeneratorLoaded extends GeneratorState {
     this.selectedCsvRowIndex = 0,
     this.pdfMode = PdfMode.frontOnly,
     this.backTemplateImageBytes,
-    this.resendApiKey = '',
     this.senderEmail = 'cti.maracanau@ifce.edu.br',
     this.emailSubject = 'Seu Certificado',
     this.emailBody = 'Olá,\n\nSegue em anexo o seu certificado.\n\nAtenciosamente,\nEquipe',
@@ -110,7 +108,6 @@ class GeneratorLoaded extends GeneratorState {
     PdfMode? pdfMode,
     Uint8List? backTemplateImageBytes,
     bool clearBackTemplate = false,
-    String? resendApiKey,
     String? senderEmail,
     String? emailSubject,
     String? emailBody,
@@ -141,7 +138,6 @@ class GeneratorLoaded extends GeneratorState {
       selectedCsvRowIndex: selectedCsvRowIndex ?? this.selectedCsvRowIndex,
       pdfMode: pdfMode ?? this.pdfMode,
       backTemplateImageBytes: clearBackTemplate ? null : (backTemplateImageBytes ?? this.backTemplateImageBytes),
-      resendApiKey: resendApiKey ?? this.resendApiKey,
       senderEmail: senderEmail ?? this.senderEmail,
       emailSubject: emailSubject ?? this.emailSubject,
       emailBody: emailBody ?? this.emailBody,

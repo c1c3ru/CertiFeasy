@@ -11,7 +11,7 @@ class EmailService {
     required String attachmentName,
     required Uint8List attachmentBytes,
   }) async {
-    final url = kIsWeb ? Uri.parse('/api/resend') : Uri.parse('https://api.resend.com/emails');
+    final url = kIsWeb ? Uri.parse('/api/email') : Uri.parse('/api/email');
     final response = await http.post(
       url,
       headers: {

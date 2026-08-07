@@ -555,7 +555,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel('Configurações Resend'),
+        _buildSectionLabel('Configurações de E-mail'),
         const SizedBox(height: 12),
         
         
