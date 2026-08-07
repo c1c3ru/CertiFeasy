@@ -10,13 +10,26 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Server configuration error: Missing API Key' });
     }
 
+    // Parse body to inject sender overrides
+    const body = req.body;
+
+    // Capture original sender for reply_to
+    const originalSender = body.from || 'cti.maracanau@ifce.edu.br';
+
+    // Override from with verified Resend domain, set reply_to to original
+    const payload = {
+      ...body,
+      from: 'CertifEasy CTI-Maracanau <onboarding@resend.dev>',
+      reply_to: originalSender,
+    };
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(req.body),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
