@@ -198,20 +198,68 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (state is GeneratorLoaded) {
-          return Scaffold(
-            body: Row(
-              children: [
-                _buildSidebar(state),
-                Container(width: 1, color: Colors.white10),
-                _buildOptionsPanel(state),
-                Container(width: 1, color: Colors.white10),
-                Expanded(child: _buildPreviewArea(state)),
-              ],
-            ),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 900) {
+                return _buildLargeScreenLayout(state);
+              } else {
+                return _buildSmallScreenLayout(state);
+              }
+            }
           );
         }
         return const Scaffold(body: Center(child: Text('Estado desconhecido')));
       },
+    );
+  }
+
+  Widget _buildLargeScreenLayout(GeneratorLoaded state) {
+    return Scaffold(
+      body: Row(
+        children: [
+          _buildSidebar(state),
+          Container(width: 1, color: Colors.white10),
+          _buildOptionsPanel(state, width: 360),
+          Container(width: 1, color: Colors.white10),
+          Expanded(child: _buildPreviewArea(state)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallScreenLayout(GeneratorLoaded state) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('CertifEasy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: const Color(0xFF16192B),
+        elevation: 0,
+      ),
+      body: Column(
+        children: [
+          Expanded(flex: 2, child: _buildPreviewArea(state)),
+          Container(height: 1, color: Colors.white10),
+          Expanded(flex: 3, child: _buildOptionsPanel(state, width: double.infinity)),
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: const Color(0xFF16192B),
+        selectedItemColor: const Color(0xFF7A78FF),
+        unselectedItemColor: Colors.white54,
+        currentIndex: _currentTab,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          if (index != _currentTab) {
+            _panelAnimController.forward(from: 0);
+            setState(() => _currentTab = index);
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.upload_file), label: 'Upload'),
+          BottomNavigationBarItem(icon: Icon(Icons.text_fields), label: 'Texto'),
+          BottomNavigationBarItem(icon: Icon(Icons.color_lens), label: 'Aparência'),
+          BottomNavigationBarItem(icon: Icon(Icons.email), label: 'E-mails'),
+        ],
+      ),
     );
   }
 
@@ -465,10 +513,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   }
 
   // ─── PAINEL DE OPÇÕES ─────────────────────────────────────────────────
-  Widget _buildOptionsPanel(GeneratorLoaded state) {
+  Widget _buildOptionsPanel(GeneratorLoaded state, {double width = 360}) {
     final titles = ['Upload de Arquivos', 'Texto e Variáveis', 'Aparência do Texto', 'Configurar E-mails'];
     return Container(
-      width: 360,
+      width: width,
       color: const Color(0xFF111322),
       padding: const EdgeInsets.all(24),
       child: Column(
