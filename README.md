@@ -68,5 +68,5 @@ flutter run -d linux
 Sinta-se à vontade para abrir **Issues** e enviar **Pull Requests**. Todas as melhorias são bem-vindas!
 
 ---
-
+*LICENÇA MIT*
 *Desenvolvido com Flutter 💙*
