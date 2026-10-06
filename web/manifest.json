@@ -1,12 +1,11 @@
 {
-    "name": "certifeasy",
-    "short_name": "certifeasy",
+    "name": "CertifEasy",
+    "short_name": "CertifEasy",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#hexcolor",
-    "theme_color": "#hexcolor",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#111322",
+    "theme_color": "#111322",
+    "description": "Gerador de certificados em lote: CSV + arte, exportação em PDF/ZIP e envio por e-mail.",
     "prefer_related_applications": false,
     "icons": [
         {
@@ -31,5 +30,6 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ]
+    ],
+    "lang": "pt-BR"
 }
