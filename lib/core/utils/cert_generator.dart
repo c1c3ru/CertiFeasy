@@ -1,6 +1,9 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+
+import 'rich_text_markup.dart';
 
 abstract class ContentBlock {
   Size layout(double maxWidth, TextStyle style);
@@ -8,29 +11,47 @@ abstract class ContentBlock {
 }
 
 class TextBlock extends ContentBlock {
-  final String text;
-  TextPainter? _painter;
-  TextBlock(this.text);
+  final List<MarkupParagraph> paragraphs;
+  final List<TextPainter> _painters = [];
+  double _width = 0;
+  TextBlock(this.paragraphs);
 
   @override
   Size layout(double maxWidth, TextStyle style) {
-    _painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    );
-    _painter!.layout(minWidth: 0, maxWidth: maxWidth);
-    return _painter!.size;
+    _painters.clear();
+    _width = 0;
+    for (final p in paragraphs) {
+      final painter = TextPainter(
+        text: p.toSpan(style),
+        textDirection: TextDirection.ltr,
+        textAlign: p.textAlign,
+      )..layout(maxWidth: maxWidth);
+      _painters.add(painter);
+      _width = math.max(_width, painter.width);
+    }
+    // Linhas alinhadas à esquerda/direita/justificadas usam a largura do bloco
+    // para que o alinhamento seja relativo às demais linhas.
+    for (var i = 0; i < paragraphs.length; i++) {
+      if (paragraphs[i].align != MarkupAlign.center) {
+        _painters[i].layout(minWidth: _width, maxWidth: _width);
+      }
+    }
+    final height = _painters.fold<double>(0, (h, p) => h + p.height);
+    return Size(_width, height);
   }
 
   @override
   void paint(Canvas canvas, Offset offset, TextStyle style, Paint gridPaint) {
-    _painter!.paint(canvas, offset);
+    var y = offset.dy;
+    for (final painter in _painters) {
+      painter.paint(canvas, Offset(offset.dx + (_width - painter.width) / 2, y));
+      y += painter.height;
+    }
   }
 }
 
 class TableBlock extends ContentBlock {
-  final List<List<String>> rows;
+  final List<List<MarkupParagraph>> rows;
   List<double>? _colWidths;
   List<double>? _rowHeights;
   Size? _size;
@@ -54,7 +75,7 @@ class TableBlock extends ContentBlock {
     for (int r = 0; r < rows.length; r++) {
       for (int c = 0; c < rows[r].length; c++) {
         final painter = TextPainter(
-          text: TextSpan(text: rows[r][c], style: style),
+          text: rows[r][c].toSpan(style),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.center,
         );
@@ -103,9 +124,8 @@ class TableBlock extends ContentBlock {
     for (int r = 0; r < rows.length; r++) {
       currentX = offset.dx;
       for (int c = 0; c < rows[r].length; c++) {
-        final text = rows[r][c];
         final painter = TextPainter(
-          text: TextSpan(text: text, style: style),
+          text: rows[r][c].toSpan(style),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.center,
         );
@@ -125,6 +145,15 @@ class TableBlock extends ContentBlock {
 }
 
 class CertGenerator {
+  /// Adiciona o bloco de texto ignorando linhas vazias no fim, como antes.
+  static void _addTextBlock(List<ContentBlock> blocks, List<MarkupParagraph> paragraphs) {
+    final list = List.of(paragraphs);
+    while (list.isNotEmpty && list.last.plainText.trim().isEmpty) {
+      list.removeLast();
+    }
+    if (list.isNotEmpty) blocks.add(TextBlock(list));
+  }
+
   static void drawCertificateContent(
     Canvas canvas,
     Size size,
@@ -146,41 +175,36 @@ class CertGenerator {
       ..style = PaintingStyle.stroke
       ..strokeWidth = fontSize * 0.05;
 
-    // Parse blocos (texto normal vs tabela Markdown)
+    // Parse blocos (texto formatado vs tabela Markdown)
     final lines = parsedText.split('\n');
-    List<ContentBlock> blocks = [];
-    
-    String currentText = '';
-    List<List<String>> currentTable = [];
-    
-    for (String line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-        if (currentText.isNotEmpty) {
-          blocks.add(TextBlock(currentText.trimRight()));
-          currentText = '';
-        }
-        
+    final List<ContentBlock> blocks = [];
+
+    List<MarkupParagraph> currentText = [];
+    List<List<MarkupParagraph>> currentTable = [];
+
+    for (final line in lines) {
+      if (isTableLine(line)) {
+        _addTextBlock(blocks, currentText);
+        currentText = [];
+
+        final trimmed = line.trim();
         final inner = trimmed.substring(1, trimmed.length - 1).trim();
-        // Ignora separadores Markdown tipo |---|---|
-        if (inner.replaceAll(RegExp(r'[\s\-]'), '').replaceAll('|', '').isEmpty) {
+        // Ignora separadores Markdown tipo |---|:---:|
+        if (inner.replaceAll(RegExp(r'[\s\-:|]'), '').isEmpty) {
           continue;
         }
-        
-        final cells = inner.split('|').map((c) => c.trim()).toList();
-        currentTable.add(cells);
+
+        currentTable.add(splitTableRow(inner).map(parseLine).toList());
       } else {
         if (currentTable.isNotEmpty) {
           blocks.add(TableBlock(currentTable));
           currentTable = [];
         }
-        currentText += line + '\n';
+        currentText.add(parseLine(line));
       }
     }
-    
-    if (currentText.isNotEmpty) {
-      blocks.add(TextBlock(currentText.trimRight()));
-    }
+
+    _addTextBlock(blocks, currentText);
     if (currentTable.isNotEmpty) {
       blocks.add(TableBlock(currentTable));
     }
@@ -232,11 +256,8 @@ class CertGenerator {
     final size = Size(templateImage.width.toDouble(), templateImage.height.toDouble());
     canvas.drawImage(templateImage, Offset.zero, Paint());
 
-    // Substituir variáveis
-    String parsedText = textTemplate;
-    rowData.forEach((key, value) {
-      parsedText = parsedText.replaceAll('{$key}', value.toString());
-    });
+    // Substituir variáveis (valores escapados: o CSV não altera a formatação)
+    final parsedText = fillTemplate(textTemplate, rowData);
 
     drawCertificateContent(
       canvas,
