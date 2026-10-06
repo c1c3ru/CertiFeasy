@@ -164,5 +164,41 @@ void main() {
             .having((s) => s.mappedData.length, 'data length', 1),
       ],
     );
+
+    test('keeps a CSV loaded while e-mail settings are being saved', () async {
+      const csvA = 'nome;evento;data;horas;email\nTeste;Exemplo;01/01;1;t@x.com';
+      const csvB = 'nome;evento;data;horas;email\nAna Real;Evento Real;02/02;2;ana@x.com';
+      generatorBloc.add(LoadFilesEvent(csvContent: csvA, imageBytes: dummyImageBytes));
+      await Future<void>.delayed(Duration.zero);
+
+      generatorBloc.add(UpdateEmailConfigEvent(emailSubject: 'Seu certificado'));
+      generatorBloc.add(LoadFilesEvent(csvContent: csvB));
+      generatorBloc.add(UpdateTemplateEvent(textTemplate: 'Meu texto {nome}'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final s = generatorBloc.state as GeneratorLoaded;
+      expect(s.mappedData.single['nome'], 'Ana Real');
+      expect(s.textTemplate, 'Meu texto {nome}');
+      expect(s.emailSubject, 'Seu certificado');
+    });
+
+    test('a message state in between does not reset the loaded data', () async {
+      generatorBloc.add(LoadFilesEvent(
+        csvContent: 'nome;evento;data;horas;email\nAna;E;D;1;a@x.com',
+        imageBytes: dummyImageBytes,
+      ));
+      await Future<void>.delayed(Duration.zero);
+      generatorBloc.add(UpdateTemplateEvent(textTemplate: 'Texto do usuário'));
+      // Um CSV inválido gera uma mensagem de erro e não pode apagar o resto.
+      generatorBloc.add(LoadFilesEvent(csvContent: 'a;b\n1;2'));
+      final newImage = Uint8List.fromList([...dummyImageBytes]);
+      generatorBloc.add(LoadFilesEvent(imageBytes: newImage));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final s = generatorBloc.state as GeneratorLoaded;
+      expect(s.textTemplate, 'Texto do usuário');
+      expect(s.mappedData.single['nome'], 'Ana');
+      expect(identical(s.templateImageBytes, newImage), isTrue);
+    });
   });
 }
