@@ -25,7 +25,7 @@ class CertPdfGenerator {
   /// [textPositionX]  — posição X normalizada (0.0–1.0) do texto na frente
   /// [textPositionY]  — posição Y normalizada (0.0–1.0) do texto na frente
   /// [mode]           — modo de saída (frontOnly / backOnly / frontAndBack)
-  /// [sendPort]       — porta para reportar progresso (double 0.0–1.0)
+  /// [onProgress]     — callback de progresso (double 0.0–1.0)
   static Future<Uint8List> generateBatchPdf({
     required List<Map<String, dynamic>> data,
     required List<String> headers,
@@ -44,7 +44,7 @@ class CertPdfGenerator {
     double backTextPositionX = 0.5,
     double backTextPositionY = 0.5,
     required PdfMode mode,
-    required SendPort sendPort,
+    required void Function(double progress) onProgress,
   }) async {
     // ── Decodificar imagens de template ─────────────────────────────────────
     final ui.Image frontTemplate = await _decodeImage(frontImgBytes);
@@ -72,7 +72,7 @@ class CertPdfGenerator {
         final pct = mode == PdfMode.frontOnly
             ? (i + 1) / data.length
             : (i + 1) / data.length * 0.5;
-        sendPort.send(pct);
+        onProgress(pct);
       }
     }
 
@@ -115,7 +115,7 @@ class CertPdfGenerator {
         final pct = mode == PdfMode.backOnly
             ? (i + 1) / data.length
             : 0.5 + (i + 1) / data.length * 0.5;
-        sendPort.send(pct);
+        onProgress(pct);
       }
     }
 
@@ -193,8 +193,10 @@ class CertPdfGenerator {
 /// Ponto de entrada do Isolate. Recebe os argumentos via [Map] e envia
 /// o resultado (Uint8List do PDF) ou um erro prefixado com "ERROR:" de volta
 /// pelo [SendPort].
-void generatePdfWorker(Map<String, dynamic> args) async {
-  final SendPort sendPort = args['sendPort'];
+/// Gera o PDF em lote e reporta pelo [send]: progresso (double), o PDF
+/// (Uint8List) ou 'ERROR:...' (String). Roda num Isolate no app nativo e
+/// direto na thread principal na Web, onde Isolates não existem.
+Future<void> generatePdfJob(Map<String, dynamic> args, void Function(Object message) send) async {
   try {
     final pdfBytes = await CertPdfGenerator.generateBatchPdf(
       data: List<Map<String, dynamic>>.from(args['data']),
@@ -214,10 +216,15 @@ void generatePdfWorker(Map<String, dynamic> args) async {
       backTextPositionX: args['backTextPositionX'] ?? 0.5,
       backTextPositionY: args['backTextPositionY'] ?? 0.5,
       mode: PdfMode.values.byName(args['pdfMode']),
-      sendPort: sendPort,
+      onProgress: send,
     );
-    sendPort.send(pdfBytes);
+    send(pdfBytes);
   } catch (e, st) {
-    sendPort.send('ERROR:$e\n$st');
+    send('ERROR:$e\n$st');
   }
+}
+
+void generatePdfWorker(Map<String, dynamic> args) async {
+  final SendPort sendPort = args['sendPort'];
+  await generatePdfJob(args, sendPort.send);
 }
