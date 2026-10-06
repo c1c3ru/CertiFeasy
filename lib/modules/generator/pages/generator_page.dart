@@ -27,6 +27,11 @@ const _colorOptions = [
   Color(0xFF7F8C8D), // Cinza médio
 ];
 
+const _colorNames = [
+  'Preto', 'Branco', 'Azul muito escuro', 'Azul petróleo', 'Roxo', 'Azul',
+  'Verde', 'Vermelho', 'Laranja', 'Amarelo', 'Cinza claro', 'Cinza médio',
+];
+
 // ─── Famílias de fontes disponíveis para o certificado ─────────────────────
 const _fontOptions = [
   'Roboto',
@@ -367,7 +372,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+      labelStyle: const TextStyle(color: Colors.white70, fontSize: 13),
       prefixIcon: Icon(icon, color: Colors.white38, size: 18),
       filled: true,
       fillColor: Colors.white.withValues(alpha: 0.05),
@@ -830,7 +835,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         const SizedBox(height: 4),
         const Text(
           'Escolha quais lados do certificado serão incluídos no PDF.',
-          style: TextStyle(color: Colors.white38, fontSize: 11.5),
+          style: TextStyle(color: Colors.white60, fontSize: 11.5),
         ),
         const SizedBox(height: 14),
         _buildPdfModeSelector(state),
@@ -962,7 +967,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.white60, fontWeight: FontWeight.w600, fontSize: 13)),
-                  Text(description, style: TextStyle(color: isSelected ? color.withValues(alpha: 0.8) : Colors.white24, fontSize: 11)),
+                  Text(description, style: TextStyle(color: isSelected ? color.withValues(alpha: 0.8) : Colors.white54, fontSize: 11)),
                 ],
               ),
             ),
@@ -1139,7 +1144,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               borderSide: const BorderSide(color: Color(0xFF7A78FF), width: 1.5),
             ),
             hintText: 'Digite o texto do certificado...',
-            hintStyle: const TextStyle(color: Colors.white24),
+            hintStyle: const TextStyle(color: Colors.white54),
             contentPadding: const EdgeInsets.all(14),
           ),
           onChanged: (val) => _bloc.add(UpdateTemplateEvent(textTemplate: val, isBack: _isEditingBack)),
@@ -1236,26 +1241,36 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           crossAxisCount: 6,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          children: _colorOptions.map((color) {
+          children: _colorOptions.asMap().entries.map((entry) {
+            final color = entry.value;
+            final colorName = _colorNames[entry.key];
             final isSelected = state.fontColorValue == color.toARGB32();
-            return GestureDetector(
-              onTap: () => _bloc.add(UpdateTemplateEvent(fontColorValue: color.toARGB32())),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? const Color(0xFF7A78FF) : Colors.white24,
-                    width: isSelected ? 2.5 : 1,
+            return Semantics(
+              button: true,
+              selected: isSelected,
+              label: 'Cor do texto: $colorName',
+              child: Tooltip(
+                message: colorName,
+                child: GestureDetector(
+                  onTap: () => _bloc.add(UpdateTemplateEvent(fontColorValue: color.toARGB32())),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? const Color(0xFF7A78FF) : Colors.white24,
+                        width: isSelected ? 2.5 : 1,
+                      ),
+                      boxShadow: isSelected
+                          ? [BoxShadow(color: const Color(0xFF7A78FF).withValues(alpha: 0.5), blurRadius: 8)]
+                          : [],
+                    ),
+                    child: isSelected
+                        ? Icon(Icons.check_rounded, size: 16, color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white)
+                        : null,
                   ),
-                  boxShadow: isSelected
-                      ? [BoxShadow(color: const Color(0xFF7A78FF).withValues(alpha: 0.5), blurRadius: 8)]
-                      : [],
                 ),
-                child: isSelected
-                    ? Icon(Icons.check_rounded, size: 16, color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white)
-                    : null,
               ),
             );
           }).toList(),
@@ -1267,7 +1282,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         const SizedBox(height: 4),
         const Text(
           'Ajusta onde o texto é posicionado no certificado.',
-          style: TextStyle(color: Colors.white38, fontSize: 11.5),
+          style: TextStyle(color: Colors.white60, fontSize: 11.5),
         ),
         const SizedBox(height: 12),
 
@@ -1275,7 +1290,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         Row(
           children: [
             const SizedBox(width: 12),
-            const Text('← Esq', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const Text('← Esq', style: TextStyle(color: Colors.white60, fontSize: 11)),
             Expanded(
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
@@ -1293,7 +1308,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                 ),
               ),
             ),
-            const Text('Dir →', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const Text('Dir →', style: TextStyle(color: Colors.white60, fontSize: 11)),
             const SizedBox(width: 12),
           ],
         ),
@@ -1302,7 +1317,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         Row(
           children: [
             const SizedBox(width: 12),
-            const Text('↑ Cima', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const Text('↑ Cima', style: TextStyle(color: Colors.white60, fontSize: 11)),
             Expanded(
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
@@ -1320,7 +1335,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                 ),
               ),
             ),
-            const Text('Baixo ↓', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const Text('Baixo ↓', style: TextStyle(color: Colors.white60, fontSize: 11)),
             const SizedBox(width: 12),
           ],
         ),
@@ -1333,7 +1348,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               _bloc.add(UpdateTextPositionEvent(dx: 0.5, dy: 0.5, isBack: _isEditingBack));
             },
             icon: const Icon(Icons.center_focus_strong_rounded, size: 14, color: Colors.white38),
-            label: const Text('Centralizar', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            label: const Text('Centralizar', style: TextStyle(color: Colors.white60, fontSize: 12)),
             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
           ),
         ),
@@ -1464,14 +1479,26 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           style: const TextStyle(color: Color(0xFF7A78FF), fontSize: 12, fontWeight: FontWeight.w600),
         ),
         const SizedBox(width: 8),
-        _navBtn(Icons.chevron_left_rounded, idx > 0 ? () => _bloc.add(SelectPreviewRowEvent(idx - 1)) : null),
+        _navBtn(Icons.chevron_left_rounded, 'Participante anterior', idx > 0 ? () => _bloc.add(SelectPreviewRowEvent(idx - 1)) : null),
         const SizedBox(width: 4),
-        _navBtn(Icons.chevron_right_rounded, idx < total - 1 ? () => _bloc.add(SelectPreviewRowEvent(idx + 1)) : null),
+        _navBtn(Icons.chevron_right_rounded, 'Próximo participante', idx < total - 1 ? () => _bloc.add(SelectPreviewRowEvent(idx + 1)) : null),
       ],
     );
   }
 
-  Widget _navBtn(IconData icon, VoidCallback? onTap) {
+  Widget _navBtn(IconData icon, String tooltip, VoidCallback? onTap) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        label: tooltip,
+        child: _navBtnBody(icon, onTap),
+      ),
+    );
+  }
+
+  Widget _navBtnBody(IconData icon, VoidCallback? onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -1500,12 +1527,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           const SizedBox(height: 16),
           const Text(
             'Carregue um template para visualizar',
-            style: TextStyle(color: Colors.white24, fontSize: 16),
+            style: TextStyle(color: Colors.white60, fontSize: 16),
           ),
           const SizedBox(height: 8),
           const Text(
             'Vá até a aba Upload e selecione uma imagem',
-            style: TextStyle(color: Colors.white12, fontSize: 13),
+            style: TextStyle(color: Colors.white54, fontSize: 13),
           ),
         ],
       ),
