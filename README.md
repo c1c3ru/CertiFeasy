@@ -53,6 +53,21 @@ flutter run -d linux
 
 ---
 
+## ✉️ Envio de certificados por e-mail (Vercel)
+
+O endpoint `/api/email` só envia e-mails para quem informar o **código de acesso** na aba E-mails. Configure na Vercel (Settings → Environment Variables):
+
+| Variável | Obrigatória | Descrição |
+| --- | --- | --- |
+| `GMAIL_USER` | Sim | Conta Gmail que envia os certificados |
+| `GMAIL_APP_PASSWORD` | Sim | Senha de app dessa conta |
+| `EMAIL_API_TOKEN` | Sim | Código de acesso digitado no app (use um valor longo e aleatório) |
+| `EMAIL_ALLOWED_ORIGINS` | Não | Origens permitidas, separadas por vírgula (ex.: `https://certifeasy.vercel.app`) |
+
+Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada requisição aceita um destinatário e um PDF de até 3 MB.
+
+---
+
 ## 📝 Uso Básico
 
 1. Na aba **Upload de Arquivos**, insira sua arte (JPG ou PNG) de Frente (e opcionalmente de Verso).

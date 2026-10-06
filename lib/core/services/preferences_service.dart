@@ -3,18 +3,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PreferencesService {
 
   static const String _senderEmail = 'sender_email';
+  static const String _emailAccessCode = 'email_access_code';
   static const String _emailSubject = 'email_subject';
   static const String _emailBody = 'email_body';
   static const String _emailColumn = 'email_column';
 
   static Future<void> saveEmailConfig({
     required String senderEmail,
+    required String accessCode,
     required String subject,
     required String body,
     required String emailColumn,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_senderEmail, senderEmail);
+    await prefs.setString(_emailAccessCode, accessCode);
     await prefs.setString(_emailSubject, subject);
     await prefs.setString(_emailBody, body);
     await prefs.setString(_emailColumn, emailColumn);
@@ -24,6 +27,7 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     return {
       'senderEmail': prefs.getString(_senderEmail) ?? '',
+      'accessCode': prefs.getString(_emailAccessCode) ?? '',
       'subject': prefs.getString(_emailSubject) ?? 'Seu Certificado',
       'body': prefs.getString(_emailBody) ?? 'Olá,\n\nSegue em anexo o seu certificado.\n\nAtenciosamente,\nEquipe',
       'emailColumn': prefs.getString(_emailColumn) ?? 'email',
