@@ -5,6 +5,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_bloc.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_event.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_state.dart';
+import 'package:certifeasy/core/utils/csv_template.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -130,6 +131,37 @@ void main() {
       expect: () => [
         isA<GeneratorError>(),
         isA<GeneratorLoaded>().having((s) => s.isSendingEmails, 'isSendingEmails', false),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'accepts the downloadable CSV template (with UTF-8 BOM) without errors',
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(csvContent: utf8.decode(csvTemplateBytes()))),
+      expect: () => [
+        isA<GeneratorSuccess>(),
+        isA<GeneratorLoaded>()
+            .having((s) => s.csvHeaders, 'headers', ['nome', 'evento', 'data', 'horas', 'email'])
+            .having((s) => s.mappedData.length, 'data length', 2)
+            .having((s) => s.mappedData[0]['nome'], 'first row nome', 'João Silva'),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'keeps previously loaded data when an invalid CSV is uploaded',
+      seed: () => GeneratorLoaded(
+        csvData: const [['nome'], ['Ana']],
+        csvHeaders: const ['nome'],
+        mappedData: const [{'nome': 'Ana'}],
+        templateImageBytes: dummyImageBytes,
+      ),
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(csvContent: 'nome;horas\nJoão;8')),
+      expect: () => [
+        isA<GeneratorError>(),
+        isA<GeneratorLoaded>()
+            .having((s) => s.templateImageBytes, 'templateImageBytes', isNotNull)
+            .having((s) => s.mappedData.length, 'data length', 1),
       ],
     );
   });

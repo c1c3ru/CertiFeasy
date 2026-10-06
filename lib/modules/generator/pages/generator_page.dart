@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
@@ -10,6 +11,7 @@ import '../blocs/generator_bloc.dart';
 import '../blocs/generator_event.dart';
 import '../blocs/generator_state.dart';
 import '../../../core/utils/cert_generator.dart';
+import '../../../core/utils/csv_template.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
 const _colorOptions = [
@@ -117,32 +119,38 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   /// Gera e salva um modelo CSV com as colunas padrão
   Future<void> _downloadCsvTemplate() async {
-    const csvContent = 'nome;horas;evento\nJoão Silva;8;Seminário de Inovação\nMaria Santos;16;Workshop de Flutter';
+    final bytes = csvTemplateBytes();
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (kIsWeb) {
+        // Na Web, `dart:io` não está disponível: o file_picker cria um Blob
+        // e dispara o download direto no navegador.
+        await FilePicker.platform.saveFile(
+          fileName: kCsvTemplateFileName,
+          type: FileType.custom,
+          allowedExtensions: ['csv'],
+          bytes: bytes,
+        );
+        _showCsvTemplateSaved();
+      } else if (Platform.isAndroid || Platform.isIOS) {
         // No mobile, geramos um arquivo temporário e abrimos a janela de compartilhamento nativa
         final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/modelo_certificados.csv');
-        await file.writeAsString(csvContent);
+        final file = File('${tempDir.path}/$kCsvTemplateFileName');
+        await file.writeAsBytes(bytes);
         // ignore: deprecated_member_use
         await Share.shareXFiles([XFile(file.path)], text: 'Modelo de CSV para o CertiFeasy');
       } else {
         // No Desktop (Linux/Win/Mac), abrimos a janela clássica de 'Salvar como...'
         String? outputFile = await FilePicker.platform.saveFile(
           dialogTitle: 'Salvar Modelo CSV',
-          fileName: 'modelo_certificados.csv',
+          fileName: kCsvTemplateFileName,
           type: FileType.custom,
           allowedExtensions: ['csv'],
         );
 
         if (outputFile != null) {
           final file = File(outputFile);
-          await file.writeAsString(csvContent);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Modelo CSV salvo com sucesso!'), backgroundColor: Colors.green),
-            );
-          }
+          await file.writeAsBytes(bytes);
+          _showCsvTemplateSaved();
         }
       }
     } catch (e) {
@@ -152,6 +160,13 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         );
       }
     }
+  }
+
+  void _showCsvTemplateSaved() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Modelo CSV salvo com sucesso!'), backgroundColor: Colors.green),
+    );
   }
 
   void _onTabTapped(int index, GeneratorLoaded state) {

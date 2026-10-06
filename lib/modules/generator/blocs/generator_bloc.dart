@@ -83,6 +83,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         
         if (missingHeaders.isNotEmpty) {
           emit(GeneratorError('O CSV deve conter as colunas obrigatórias: ${missingHeaders.join(', ')}'));
+          // Restaura o estado anterior para não perder a imagem/CSV já carregados
+          emit(current);
           return;
         }
 
