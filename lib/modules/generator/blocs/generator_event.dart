@@ -61,12 +61,14 @@ class UpdateProgressEvent extends GeneratorEvent {
 
 class UpdateEmailConfigEvent extends GeneratorEvent {
   final String? senderEmail;
+  final String? emailAccessCode;
   final String? emailSubject;
   final String? emailBody;
   final String? emailColumn;
 
   UpdateEmailConfigEvent({
     this.senderEmail,
+    this.emailAccessCode,
     this.emailSubject,
     this.emailBody,
     this.emailColumn,

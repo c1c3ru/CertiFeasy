@@ -46,7 +46,10 @@ class GeneratorLoaded extends GeneratorState {
   final Uint8List? backTemplateImageBytes;
 
   // ── Email ──────────────────────────────────────────────────────────────────
+  /// E-mail para onde vão as respostas dos participantes (Reply-To).
   final String senderEmail;
+  /// Código exigido pelo /api/email (variável EMAIL_API_TOKEN na Vercel).
+  final String emailAccessCode;
   final String emailSubject;
   final String emailBody;
   final String emailColumn;
@@ -77,6 +80,7 @@ class GeneratorLoaded extends GeneratorState {
     this.pdfMode = PdfMode.frontOnly,
     this.backTemplateImageBytes,
     this.senderEmail = 'cti.maracanau@ifce.edu.br',
+    this.emailAccessCode = '',
     this.emailSubject = 'Seu Certificado',
     this.emailBody = 'Olá,\n\nSegue em anexo o seu certificado.\n\nAtenciosamente,\nEquipe',
     this.emailColumn = 'email',
@@ -109,6 +113,7 @@ class GeneratorLoaded extends GeneratorState {
     Uint8List? backTemplateImageBytes,
     bool clearBackTemplate = false,
     String? senderEmail,
+    String? emailAccessCode,
     String? emailSubject,
     String? emailBody,
     String? emailColumn,
@@ -139,6 +144,7 @@ class GeneratorLoaded extends GeneratorState {
       pdfMode: pdfMode ?? this.pdfMode,
       backTemplateImageBytes: clearBackTemplate ? null : (backTemplateImageBytes ?? this.backTemplateImageBytes),
       senderEmail: senderEmail ?? this.senderEmail,
+      emailAccessCode: emailAccessCode ?? this.emailAccessCode,
       emailSubject: emailSubject ?? this.emailSubject,
       emailBody: emailBody ?? this.emailBody,
       emailColumn: emailColumn ?? this.emailColumn,
@@ -160,7 +166,7 @@ class GeneratorLoaded extends GeneratorState {
   bool get canGenerateZip => mappedData.isNotEmpty && templateImageBytes != null;
   
   /// Verdadeiro quando os requisitos para envio de e-mails estão satisfeitos
-  bool get canSendEmails => canGeneratePdf && senderEmail.isNotEmpty && emailColumn.isNotEmpty;
+  bool get canSendEmails => canGeneratePdf && senderEmail.isNotEmpty && emailAccessCode.isNotEmpty && emailColumn.isNotEmpty;
 }
 
 class GeneratorError extends GeneratorState {

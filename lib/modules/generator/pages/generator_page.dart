@@ -562,8 +562,24 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         TextFormField(
           initialValue: state.senderEmail,
           style: const TextStyle(color: Colors.white),
-          decoration: _inputDecoration('E-mail do Remetente', Icons.alternate_email),
+          keyboardType: TextInputType.emailAddress,
+          decoration: _inputDecoration('E-mail para respostas', Icons.alternate_email),
           onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(senderEmail: val)),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Os certificados saem da conta configurada no servidor; as respostas vão para este e-mail.',
+          style: TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: state.emailAccessCode,
+          style: const TextStyle(color: Colors.white),
+          obscureText: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: _inputDecoration('Código de acesso para envio', Icons.lock_outline),
+          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(emailAccessCode: val)),
         ),
         const SizedBox(height: 24),
 

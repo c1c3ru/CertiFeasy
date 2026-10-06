@@ -102,5 +102,35 @@ void main() {
             .having((s) => s.pdfMode, 'pdfMode', PdfMode.frontAndBack)
       ],
     );
+
+    test('canSendEmails requires the access code', () {
+      final base = GeneratorLoaded(
+        csvData: const [['nome'], ['Ana']],
+        csvHeaders: const ['nome'],
+        mappedData: const [{'nome': 'Ana'}],
+        templateImageBytes: dummyImageBytes,
+        senderEmail: 'contato@exemplo.com',
+      );
+      expect(base.canSendEmails, isFalse);
+      expect(base.copyWith(emailAccessCode: 'segredo').canSendEmails, isTrue);
+    });
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'rejects an invalid reply-to e-mail before sending anything',
+      seed: () => GeneratorLoaded(
+        csvData: const [['nome', 'email'], ['Ana', 'ana@exemplo.com']],
+        csvHeaders: const ['nome', 'email'],
+        mappedData: const [{'nome': 'Ana', 'email': 'ana@exemplo.com'}],
+        templateImageBytes: dummyImageBytes,
+        senderEmail: 'sem-arroba',
+        emailAccessCode: 'segredo',
+      ),
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(SendEmailsBatchEvent()),
+      expect: () => [
+        isA<GeneratorError>(),
+        isA<GeneratorLoaded>().having((s) => s.isSendingEmails, 'isSendingEmails', false),
+      ],
+    );
   });
 }

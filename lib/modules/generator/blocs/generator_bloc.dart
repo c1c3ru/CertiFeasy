@@ -16,6 +16,8 @@ import '../../../core/services/email_service.dart';
 import 'generator_event.dart';
 import 'generator_state.dart';
 
+final _emailRegex = RegExp(r'^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$');
+
 class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   GeneratorBloc() : super(GeneratorInitial()) {
     on<LoadFilesEvent>(_onLoadFiles);
@@ -183,6 +185,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       final config = await PreferencesService.loadEmailConfig();
       emit((state as GeneratorLoaded).copyWith(
         senderEmail: config['senderEmail'],
+        emailAccessCode: config['accessCode'],
         emailSubject: config['subject'],
         emailBody: config['body'],
         emailColumn: config['emailColumn'],
@@ -195,12 +198,14 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       final current = state as GeneratorLoaded;
       
       final senderEmail = event.senderEmail ?? current.senderEmail;
+      final accessCode = event.emailAccessCode ?? current.emailAccessCode;
       final subject = event.emailSubject ?? current.emailSubject;
       final body = event.emailBody ?? current.emailBody;
       final emailColumn = event.emailColumn ?? current.emailColumn;
 
       await PreferencesService.saveEmailConfig(
         senderEmail: senderEmail,
+        accessCode: accessCode,
         subject: subject,
         body: body,
         emailColumn: emailColumn,
@@ -208,6 +213,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
       emit(current.copyWith(
         senderEmail: senderEmail,
+        emailAccessCode: accessCode,
         emailSubject: subject,
         emailBody: body,
         emailColumn: emailColumn,
@@ -234,6 +240,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       return;
     }
 
+    if (!_emailRegex.hasMatch(current.senderEmail.trim())) {
+      emit(GeneratorError('Informe um e-mail de resposta válido (ex.: contato@instituicao.edu.br).'));
+      emit(current);
+      return;
+    }
+
     emit(current.copyWith(
       isSendingEmails: true, 
       emailsSentCount: 0, 
@@ -242,11 +254,13 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
     try {
       int successCount = 0;
+      int failureCount = 0;
+      String? lastError;
       for (int i = 0; i < current.mappedData.length; i++) {
         final row = current.mappedData[i];
         final recipientEmail = row[current.emailColumn]?.toString().trim();
         
-        if (recipientEmail == null || recipientEmail.isEmpty || !recipientEmail.contains('@')) {
+        if (recipientEmail == null || !_emailRegex.hasMatch(recipientEmail)) {
           // Pula caso não haja email válido nesta linha
           add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
           continue;
@@ -294,8 +308,9 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         });
 
         // 3. Envia via Gmail SMTP
-        final success = await EmailService.sendEmailWithAttachment(
-          senderEmail: current.senderEmail,
+        final result = await EmailService.sendEmailWithAttachment(
+          accessCode: current.emailAccessCode.trim(),
+          replyTo: current.senderEmail.trim(),
           toEmail: recipientEmail,
           subject: parsedSubject,
           textBody: parsedBody,
@@ -303,7 +318,14 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           attachmentBytes: pdfBytes,
         );
 
-        if (success) successCount++;
+        if (result.success) {
+          successCount++;
+        } else {
+          failureCount++;
+          lastError = result.error;
+          // Código inválido ou servidor sem configuração: os próximos envios também falhariam.
+          if (result.unauthorized) break;
+        }
         
         // Atualiza a barra de progresso após enviar
         add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
@@ -314,7 +336,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
       final updatedState = state as GeneratorLoaded;
       emit(updatedState.copyWith(isSendingEmails: false));
-      emit(GeneratorSuccess('E-mails processados: $successCount envios com sucesso.'));
+      if (failureCount == 0) {
+        emit(GeneratorSuccess('E-mails processados: $successCount envios com sucesso.'));
+      } else {
+        emit(GeneratorError('$successCount e-mail(s) enviados, $failureCount com falha. Último erro: $lastError'));
+      }
+      emit(updatedState.copyWith(isSendingEmails: false));
     } catch (e) {
       final updatedState = state as GeneratorLoaded;
       emit(GeneratorError('Erro durante envio de e-mails: $e'));
