@@ -292,7 +292,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           continue;
         }
 
-        // 1. Gera a imagem do certificado apenas desta linha
+        // 1. Gera as imagens do certificado desta linha (frente e/ou verso, com texto)
         final certBytes = await CertGenerator.generateCertificateImage(
           await decodeImageFromList(current.templateImageBytes!),
           row,
@@ -304,12 +304,21 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           textPositionY: current.textPositionY,
         );
 
-        // 2. Transforma a imagem gerada num PDF
         Uint8List? backBytes;
         if (current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null) {
-          backBytes = current.backTemplateImageBytes;
+          backBytes = await CertGenerator.generateCertificateImage(
+            await decodeImageFromList(current.backTemplateImageBytes!),
+            row,
+            current.backTextTemplate,
+            current.backFontSize,
+            current.backFontFamily,
+            Color(current.backFontColorValue),
+            textPositionX: current.backTextPositionX,
+            textPositionY: current.backTextPositionY,
+          );
         }
 
+        // 2. Transforma as imagens geradas num PDF
         final pdfBytes = await CertPdfGenerator.generateSinglePdf(
           frontImageBytes: certBytes,
           backImageBytes: backBytes,

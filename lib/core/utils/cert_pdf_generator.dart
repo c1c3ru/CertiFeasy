@@ -53,11 +53,26 @@ class CertPdfGenerator {
       backTemplate = await _decodeImage(backImgBytes);
     }
 
-    // ── Gerar PNG de cada certificado (frente) ──────────────────────────────
-    final List<Uint8List> frontPngs = [];
-    if (mode != PdfMode.backOnly) {
-      for (int i = 0; i < data.length; i++) {
-        final png = await CertGenerator.generateCertificateImage(
+    final generateFront = mode != PdfMode.backOnly;
+    final generateBack = mode != PdfMode.frontOnly && backTemplate != null;
+
+    // ── Montar documento PDF ────────────────────────────────────────────────
+    // Frente e verso de cada participante ficam em páginas seguidas
+    // (F1, V1, F2, V2…), na ordem certa para impressão frente e verso.
+    final pdf = pw.Document();
+    Future<void> addPage(Uint8List png) async {
+      final img = pw.MemoryImage(png);
+      final size = await _pdfImageSize(png);
+      pdf.addPage(pw.Page(
+        pageFormat: size,
+        margin: pw.EdgeInsets.zero,
+        build: (pw.Context ctx) => pw.Image(img, fit: pw.BoxFit.fill),
+      ));
+    }
+
+    for (int i = 0; i < data.length; i++) {
+      if (generateFront) {
+        await addPage(await CertGenerator.generateCertificateImage(
           frontTemplate,
           data[i],
           textTemplate,
@@ -66,34 +81,10 @@ class CertPdfGenerator {
           ui.Color(fontColor),
           textPositionX: textPositionX,
           textPositionY: textPositionY,
-        );
-        frontPngs.add(png);
-        // Progresso: 0% → 50% para frentes (ou 0%→100% se frontOnly)
-        final pct = mode == PdfMode.frontOnly
-            ? (i + 1) / data.length
-            : (i + 1) / data.length * 0.5;
-        onProgress(pct);
+        ));
       }
-    }
-
-    // ── Montar documento PDF ────────────────────────────────────────────────
-    final pdf = pw.Document();
-
-    // Páginas de FRENTE
-    for (int i = 0; i < frontPngs.length; i++) {
-      final img = pw.MemoryImage(frontPngs[i]);
-      final imgSize = await _pdfImageSize(frontPngs[i]);
-      pdf.addPage(pw.Page(
-        pageFormat: imgSize,
-        margin: pw.EdgeInsets.zero,
-        build: (pw.Context ctx) => pw.Image(img, fit: pw.BoxFit.fill),
-      ));
-    }
-
-    // Páginas de VERSO
-    if (mode != PdfMode.frontOnly && backTemplate != null && backImgBytes != null) {
-      for (int i = 0; i < data.length; i++) {
-        final backPng = await CertGenerator.generateCertificateImage(
+      if (generateBack) {
+        await addPage(await CertGenerator.generateCertificateImage(
           backTemplate,
           data[i],
           backTextTemplate,
@@ -102,21 +93,9 @@ class CertPdfGenerator {
           ui.Color(backFontColor),
           textPositionX: backTextPositionX,
           textPositionY: backTextPositionY,
-        );
-        final backImg = pw.MemoryImage(backPng);
-        final backSize = await _pdfImageSize(backPng);
-
-        pdf.addPage(pw.Page(
-          pageFormat: backSize,
-          margin: pw.EdgeInsets.zero,
-          build: (pw.Context ctx) => pw.Image(backImg, fit: pw.BoxFit.fill),
         ));
-        // Progresso: 50%→100% para versos
-        final pct = mode == PdfMode.backOnly
-            ? (i + 1) / data.length
-            : 0.5 + (i + 1) / data.length * 0.5;
-        onProgress(pct);
       }
+      onProgress((i + 1) / data.length);
     }
 
     return await pdf.save();
