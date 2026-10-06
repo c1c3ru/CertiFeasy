@@ -12,6 +12,9 @@ import '../blocs/generator_event.dart';
 import '../blocs/generator_state.dart';
 import '../../../core/utils/cert_generator.dart';
 import '../../../core/utils/csv_template.dart';
+import '../../../core/utils/markup_editing.dart';
+import '../../../core/utils/rich_text_markup.dart';
+import '../widgets/rich_text_editor.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
 const _colorOptions = [
@@ -1105,7 +1108,8 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               const Expanded(
                 child: Text(
                   'Use {nome_da_coluna} para valores dinâmicos. Ex: {nome}, {horas}.\n'
-                  'Dica: Crie tabelas estilo Markdown (ex: | Coluna 1 | Coluna 2 |) para organizar o conteúdo do verso!',
+                  'Formate pela barra ou digitando: **negrito**, *itálico*, __sublinhado__, '
+                  '~~tachado~~, # Título, - lista e tabelas | Coluna 1 | Coluna 2 |.',
                   style: TextStyle(color: Colors.white60, fontSize: 12.5),
                 ),
               ),
@@ -1121,17 +1125,9 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             runSpacing: 6,
             children: state.csvHeaders.map((h) => InkWell(
               onTap: () {
-                final text = controller.text;
-                final selection = controller.selection;
-                final tag = '{$h}';
-                final newText = text.replaceRange(
-                  selection.start < 0 ? text.length : selection.start,
-                  selection.end < 0 ? text.length : selection.end,
-                  tag,
-                );
-                controller.text = newText;
+                controller.value = insertText(controller.value, '{$h}');
                 _bloc.add(UpdateTemplateEvent(
-                  textTemplate: newText,
+                  textTemplate: controller.text,
                   isBack: _isEditingBack,
                 ));
               },
@@ -1156,29 +1152,9 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           ),
           const SizedBox(height: 20),
         ],
-        TextField(
+        RichTextEditor(
+          key: ValueKey(_isEditingBack),
           controller: controller,
-          maxLines: 6,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: const Color(0xFF16192B),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.white12),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF7A78FF), width: 1.5),
-            ),
-            hintText: 'Digite o texto do certificado...',
-            hintStyle: const TextStyle(color: Colors.white54),
-            contentPadding: const EdgeInsets.all(14),
-          ),
           onChanged: (val) => _bloc.add(UpdateTemplateEvent(textTemplate: val, isBack: _isEditingBack)),
         ),
       ],
@@ -1586,10 +1562,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     final rowData = state.mappedData.isEmpty ? <String, dynamic>{} : state.mappedData[idx];
 
     final currentTemplate = _isEditingBack ? state.backTextTemplate : state.textTemplate;
-    String previewText = currentTemplate;
-    rowData.forEach((key, value) {
-      previewText = previewText.replaceAll('{$key}', value.toString());
-    });
+    final previewText = fillTemplate(currentTemplate, rowData);
 
     final currentImageBytes = _isEditingBack ? state.backTemplateImageBytes : state.templateImageBytes;
     final currentPosX = _isEditingBack ? state.backTextPositionX : state.textPositionX;
