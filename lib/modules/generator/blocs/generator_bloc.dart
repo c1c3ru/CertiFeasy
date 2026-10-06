@@ -47,13 +47,27 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     add(LoadEmailConfigEvent());
   }
 
+  /// Último [GeneratorLoaded] emitido. Mensagens (sucesso/erro) substituem o
+  /// estado por um instante; os handlers partem sempre dos dados mais recentes.
+  GeneratorLoaded? _lastLoaded;
+
+  GeneratorLoaded? get _loaded =>
+      state is GeneratorLoaded ? state as GeneratorLoaded : _lastLoaded;
+
+  @override
+  void onChange(Change<GeneratorState> change) {
+    super.onChange(change);
+    final next = change.nextState;
+    if (next is GeneratorLoaded) _lastLoaded = next;
+  }
+
   // ─── Handlers ────────────────────────────────────────────────────────────
 
   void _onLoadFiles(LoadFilesEvent event, Emitter<GeneratorState> emit) {
     // Resolve o estado atual — se ainda não foi inicializado, cria um estado vazio
     final GeneratorLoaded current;
-    if (state is GeneratorLoaded) {
-      current = state as GeneratorLoaded;
+    if (_loaded != null) {
+      current = _loaded!;
     } else {
       current = GeneratorLoaded(
         csvData: const [],
@@ -115,8 +129,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
 
   void _onLoadBackImage(LoadBackImageEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       emit(GeneratorSuccess('Template Verso carregado com sucesso!'));
       emit(current.copyWith(
         backTemplateImageBytes: event.imageBytes,
@@ -125,8 +139,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   void _onUpdateTemplate(UpdateTemplateEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       if (event.isBack) {
         emit(current.copyWith(
           backTextTemplate: event.textTemplate ?? current.backTextTemplate,
@@ -146,8 +160,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   void _onUpdateTextPosition(UpdateTextPositionEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       if (event.isBack) {
         emit(current.copyWith(
           backTextPositionX: event.dx?.clamp(0.0, 1.0) ?? current.backTextPositionX,
@@ -163,16 +177,16 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   void _onSelectPreviewRow(SelectPreviewRowEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       final idx = event.index.clamp(0, current.mappedData.length - 1);
       emit(current.copyWith(selectedCsvRowIndex: idx));
     }
   }
 
   void _onUpdatePdfMode(UpdatePdfModeEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       emit(current.copyWith(
         pdfMode: event.mode,
         // Limpa o verso se o usuário volta para frontOnly
@@ -182,17 +196,17 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   void _onUpdateProgress(UpdateProgressEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       emit(current.copyWith(progress: event.progress));
     }
   }
 
   // ─── EMAIL ───────────────────────────────────────────────────────────────
   Future<void> _onLoadEmailConfig(LoadEmailConfigEvent event, Emitter<GeneratorState> emit) async {
-    if (state is GeneratorLoaded) {
+    if (_loaded != null) {
       final config = await PreferencesService.loadEmailConfig();
-      emit((state as GeneratorLoaded).copyWith(
+      emit(_loaded!.copyWith(
         senderEmail: config['senderEmail'],
         emailAccessCode: config['accessCode'],
         emailSubject: config['subject'],
@@ -203,14 +217,24 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   Future<void> _onUpdateEmailConfig(UpdateEmailConfigEvent event, Emitter<GeneratorState> emit) async {
-    if (state is GeneratorLoaded) {
-      final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current != null) {
       
       final senderEmail = event.senderEmail ?? current.senderEmail;
       final accessCode = event.emailAccessCode ?? current.emailAccessCode;
       final subject = event.emailSubject ?? current.emailSubject;
       final body = event.emailBody ?? current.emailBody;
       final emailColumn = event.emailColumn ?? current.emailColumn;
+
+      // Atualiza o estado antes de salvar: depois do await o estado pode ter
+      // mudado (ex.: novo CSV) e não deve ser sobrescrito.
+      emit(current.copyWith(
+        senderEmail: senderEmail,
+        emailAccessCode: accessCode,
+        emailSubject: subject,
+        emailBody: body,
+        emailColumn: emailColumn,
+      ));
 
       await PreferencesService.saveEmailConfig(
         senderEmail: senderEmail,
@@ -219,20 +243,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         body: body,
         emailColumn: emailColumn,
       );
-
-      emit(current.copyWith(
-        senderEmail: senderEmail,
-        emailAccessCode: accessCode,
-        emailSubject: subject,
-        emailBody: body,
-        emailColumn: emailColumn,
-      ));
     }
   }
 
   void _onUpdateEmailProgress(UpdateEmailProgressEvent event, Emitter<GeneratorState> emit) {
-    if (state is GeneratorLoaded) {
-      emit((state as GeneratorLoaded).copyWith(
+    if (_loaded != null) {
+      emit(_loaded!.copyWith(
         emailsSentCount: event.sentCount,
         emailsTotalCount: event.totalCount,
       ));
@@ -240,8 +256,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   Future<void> _onSendEmailsBatch(SendEmailsBatchEvent event, Emitter<GeneratorState> emit) async {
-    if (state is! GeneratorLoaded) return;
-    final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current == null) return;
 
     if (!current.canSendEmails) {
       emit(GeneratorError('Faltam configurações de e-mail ou os requisitos do certificado (Imagem/CSV).'));
@@ -355,7 +371,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         await Future.delayed(const Duration(milliseconds: 550));
       }
 
-      final updatedState = state as GeneratorLoaded;
+      final updatedState = _loaded ?? current;
       emit(updatedState.copyWith(isSendingEmails: false));
       if (failureCount == 0) {
         emit(GeneratorSuccess('E-mails processados: $successCount envios com sucesso.'));
@@ -368,7 +384,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       }
       emit(updatedState.copyWith(isSendingEmails: false));
     } catch (e) {
-      final updatedState = state as GeneratorLoaded;
+      final updatedState = _loaded ?? current;
       emit(GeneratorError('Erro durante envio de e-mails: $e'));
       emit(updatedState.copyWith(isSendingEmails: false));
     }
@@ -376,8 +392,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
   // ─── ZIP (PNGs) ───────────────────────────────────────────────────────────
   Future<void> _onGenerateBatch(GenerateBatchEvent event, Emitter<GeneratorState> emit) async {
-    if (state is! GeneratorLoaded) return;
-    final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current == null) return;
     if (!current.canGenerateZip) {
       emit(GeneratorError('Faltam dados ou imagem base.'));
       emit(current);
@@ -414,17 +430,19 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     );
 
     if (zipBytes != null) {
-      await _shareFile(zipBytes, 'certificados.zip', 'Aqui estão os certificados gerados!', emit, current);
+      await _shareFile(zipBytes, _timestampedName('certificados', 'zip'), 'Aqui estão os certificados gerados!', emit, current);
     }
 
     add(UpdateProgressEvent(1.0));
-    emit(current.copyWith(isGenerating: false, progress: 1.0));
+    // Usa o estado mais recente: arquivos ou textos alterados durante a
+    // geração não podem voltar ao que eram quando ela começou.
+    emit((_loaded ?? current).copyWith(isGenerating: false, progress: 1.0));
   }
 
   // ─── PDF ─────────────────────────────────────────────────────────────────
   Future<void> _onGeneratePdfBatch(GeneratePdfBatchEvent event, Emitter<GeneratorState> emit) async {
-    if (state is! GeneratorLoaded) return;
-    final current = state as GeneratorLoaded;
+    final current = _loaded;
+    if (current == null) return;
     if (!current.canGeneratePdf) {
       emit(GeneratorError('Para gerar o PDF, carregue todos os arquivos necessários.'));
       emit(current);
@@ -461,11 +479,13 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     );
 
     if (pdfBytes != null) {
-      await _shareFile(pdfBytes, 'certificados.pdf', 'Certificados em PDF', emit, current);
+      await _shareFile(pdfBytes, _timestampedName('certificados', 'pdf'), 'Certificados em PDF', emit, current);
     }
 
     add(UpdateProgressEvent(1.0));
-    emit(current.copyWith(isGenerating: false, progress: 1.0));
+    // Usa o estado mais recente: arquivos ou textos alterados durante a
+    // geração não podem voltar ao que eram quando ela começou.
+    emit((_loaded ?? current).copyWith(isGenerating: false, progress: 1.0));
   }
 
   // ─── Execução da geração ────────────────────────────────────────────────
@@ -505,6 +525,13 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   // ─── Helper compartilhado ────────────────────────────────────────────────
+  /// Nome com data e hora, para o arquivo novo não se confundir com downloads anteriores.
+  static String _timestampedName(String base, String ext) {
+    final now = DateTime.now();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${base}_${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}${two(now.second)}.$ext';
+  }
+
   Future<void> _shareFile(
     Uint8List bytes,
     String filename,
