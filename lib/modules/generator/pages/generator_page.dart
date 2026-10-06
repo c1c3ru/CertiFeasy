@@ -677,9 +677,10 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                       builder: (ctx) => AlertDialog(
                         backgroundColor: const Color(0xFF16192B),
                         title: const Text('Confirmar Envio', style: TextStyle(color: Colors.white)),
-                        content: const Text(
-                          'Deseja gerar e enviar os certificados por e-mail para todos os contatos válidos no CSV?',
-                          style: TextStyle(color: Colors.white70),
+                        content: Text(
+                          'Deseja gerar e enviar ${state.mappedData.length} certificado(s) por e-mail para os contatos válidos no CSV?'
+                          '${state.mappedData.length > kGmailDailyLimit ? '\n\nAtenção: o Gmail envia no máximo cerca de $kGmailDailyLimit e-mails por dia; os excedentes vão falhar.' : ''}',
+                          style: const TextStyle(color: Colors.white70),
                         ),
                         actions: [
                           TextButton(

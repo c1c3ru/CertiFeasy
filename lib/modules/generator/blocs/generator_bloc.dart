@@ -16,6 +16,12 @@ import '../../../core/services/email_service.dart';
 import 'generator_event.dart';
 import 'generator_state.dart';
 
+/// Limite de anexo aceito pelo /api/email (ver api/email.js).
+const kMaxEmailAttachmentBytes = 3 * 1024 * 1024;
+
+/// Limite diário aproximado de envios de uma conta Gmail.
+const kGmailDailyLimit = 500;
+
 final _emailRegex = RegExp(r'^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$');
 
 class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
@@ -256,6 +262,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       int successCount = 0;
       int failureCount = 0;
       String? lastError;
+      final failedRecipients = <String>[];
       for (int i = 0; i < current.mappedData.length; i++) {
         final row = current.mappedData[i];
         final recipientEmail = row[current.emailColumn]?.toString().trim();
@@ -290,6 +297,16 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           mode: current.pdfMode,
         );
 
+        // O servidor recusa anexos acima de 3 MB: avisa antes de tentar o envio.
+        if (pdfBytes.length > kMaxEmailAttachmentBytes) {
+          failureCount++;
+          failedRecipients.add(recipientEmail);
+          lastError = 'o certificado ficou com ${(pdfBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB '
+              '(máximo 3 MB). Use uma imagem de template menor.';
+          add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
+          continue;
+        }
+
         // Define o nome do arquivo pdf
         String certName = 'certificado_$i.pdf';
         if (current.csvHeaders.isNotEmpty && row.containsKey(current.csvHeaders.first)) {
@@ -322,6 +339,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           successCount++;
         } else {
           failureCount++;
+          failedRecipients.add(recipientEmail);
           lastError = result.error;
           // Código inválido ou servidor sem configuração: os próximos envios também falhariam.
           if (result.unauthorized) break;
@@ -339,7 +357,11 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       if (failureCount == 0) {
         emit(GeneratorSuccess('E-mails processados: $successCount envios com sucesso.'));
       } else {
-        emit(GeneratorError('$successCount e-mail(s) enviados, $failureCount com falha. Último erro: $lastError'));
+        final shown = failedRecipients.take(5).join(', ');
+        final more = failedRecipients.length > 5 ? ' e mais ${failedRecipients.length - 5}' : '';
+        emit(GeneratorError(
+          '$successCount e-mail(s) enviados, $failureCount com falha ($shown$more). Último erro: $lastError',
+        ));
       }
       emit(updatedState.copyWith(isSendingEmails: false));
     } catch (e) {
