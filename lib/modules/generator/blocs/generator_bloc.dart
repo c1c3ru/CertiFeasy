@@ -2,6 +2,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:csv/csv.dart';
@@ -336,9 +337,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
     emit(current.copyWith(isGenerating: true, progress: 0.0));
 
-    final receivePort = ReceivePort();
     final args = <String, dynamic>{
-      'sendPort': receivePort.sendPort,
       'data': current.mappedData,
       'headers': current.csvHeaders,
       'imgBytes': current.templateImageBytes,
@@ -358,20 +357,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       'pdfMode': current.pdfMode.name,
     };
 
-    await Isolate.spawn(_generateZipWorker, args);
-
-    Uint8List? zipBytes;
-    await for (final msg in receivePort) {
-      if (msg is double) {
-        add(UpdateProgressEvent(msg));
-      } else if (msg is Uint8List) {
-        zipBytes = msg;
-        receivePort.close();
-      } else if (msg is String && msg.startsWith('ERROR:')) {
-        emit(GeneratorError(msg));
-        receivePort.close();
-      }
-    }
+    final zipBytes = await _runJob(
+      args,
+      job: _generateZipJob,
+      worker: _generateZipWorker,
+      onError: (msg) => emit(GeneratorError('Erro ao gerar ZIP: $msg')),
+    );
 
     if (zipBytes != null) {
       await _shareFile(zipBytes, 'certificados.zip', 'Aqui estão os certificados gerados!', emit, current);
@@ -393,9 +384,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
     emit(current.copyWith(isGenerating: true, progress: 0.0));
 
-    final receivePort = ReceivePort();
     final args = <String, dynamic>{
-      'sendPort': receivePort.sendPort,
       'data': current.mappedData,
       'headers': current.csvHeaders,
       'frontImgBytes': current.templateImageBytes,
@@ -415,20 +404,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       'pdfMode': current.pdfMode.name,
     };
 
-    await Isolate.spawn(generatePdfWorker, args);
-
-    Uint8List? pdfBytes;
-    await for (final msg in receivePort) {
-      if (msg is double) {
-        add(UpdateProgressEvent(msg));
-      } else if (msg is Uint8List) {
-        pdfBytes = msg;
-        receivePort.close();
-      } else if (msg is String && msg.startsWith('ERROR:')) {
-        emit(GeneratorError('Erro ao gerar PDF: $msg'));
-        receivePort.close();
-      }
-    }
+    final pdfBytes = await _runJob(
+      args,
+      job: generatePdfJob,
+      worker: generatePdfWorker,
+      onError: (msg) => emit(GeneratorError('Erro ao gerar PDF: $msg')),
+    );
 
     if (pdfBytes != null) {
       await _shareFile(pdfBytes, 'certificados.pdf', 'Certificados em PDF', emit, current);
@@ -436,6 +417,42 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
     add(UpdateProgressEvent(1.0));
     emit(current.copyWith(isGenerating: false, progress: 1.0));
+  }
+
+  // ─── Execução da geração ────────────────────────────────────────────────
+  /// Roda a geração em um Isolate (app nativo) ou na thread principal (Web,
+  /// onde `Isolate.spawn` não existe). Devolve os bytes gerados ou null.
+  Future<Uint8List?> _runJob(
+    Map<String, dynamic> args, {
+    required Future<void> Function(Map<String, dynamic> args, void Function(Object message) send) job,
+    required void Function(Map<String, dynamic> args) worker,
+    required void Function(String message) onError,
+  }) async {
+    Uint8List? result;
+    void handle(Object? msg) {
+      if (msg is double) {
+        add(UpdateProgressEvent(msg));
+      } else if (msg is Uint8List) {
+        result = msg;
+      } else if (msg is String && msg.startsWith('ERROR:')) {
+        onError(msg.substring('ERROR:'.length));
+      }
+    }
+
+    if (kIsWeb) {
+      await job(args, handle);
+      return result;
+    }
+
+    final receivePort = ReceivePort();
+    await Isolate.spawn(worker, {...args, 'sendPort': receivePort.sendPort});
+    await for (final msg in receivePort) {
+      handle(msg);
+      if (msg is Uint8List || (msg is String && msg.startsWith('ERROR:'))) {
+        receivePort.close();
+      }
+    }
+    return result;
   }
 
   // ─── Helper compartilhado ────────────────────────────────────────────────
@@ -447,7 +464,11 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     GeneratorLoaded fallbackState,
   ) async {
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (kIsWeb) {
+        // Na Web o file_picker cria um Blob e dispara o download no navegador.
+        await FilePicker.platform.saveFile(fileName: filename, bytes: bytes);
+        emit(GeneratorSuccess('Download de $filename iniciado.'));
+      } else if (Platform.isAndroid || Platform.isIOS) {
         final tempDir = await getTemporaryDirectory();
         final file = File('${tempDir.path}/$filename');
         await file.writeAsBytes(bytes);
@@ -475,10 +496,16 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 }
 
-// ─── Isolate worker: ZIP ─────────────────────────────────────────────────────
+// ─── Geração do ZIP ──────────────────────────────────────────────────────────
 void _generateZipWorker(Map<String, dynamic> args) async {
+  final SendPort sendPort = args['sendPort'];
+  await _generateZipJob(args, sendPort.send);
+}
+
+/// Gera o ZIP e reporta pelo [send]: progresso (double), o ZIP (Uint8List)
+/// ou 'ERROR:...' (String).
+Future<void> _generateZipJob(Map<String, dynamic> args, void Function(Object message) send) async {
   try {
-    final SendPort sendPort = args['sendPort'];
     final List<Map<String, dynamic>> data = args['data'];
     final List<String> headers = List<String>.from(args['headers'] ?? []);
     final Uint8List imgBytes = args['imgBytes'];
@@ -556,13 +583,12 @@ void _generateZipWorker(Map<String, dynamic> args) async {
         archive.addFile(ArchiveFile(fileName, backBytes.length, backBytes));
       }
 
-      sendPort.send((i + 1) / data.length);
+      send((i + 1) / data.length);
     }
 
     final zipData = ZipEncoder().encode(archive);
-    sendPort.send(Uint8List.fromList(zipData));
+    send(Uint8List.fromList(zipData));
   } catch (e) {
-    final SendPort sendPort = args['sendPort'];
-    sendPort.send('ERROR:$e');
+    send('ERROR:$e');
   }
 }
