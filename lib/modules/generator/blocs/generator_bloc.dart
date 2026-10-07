@@ -12,6 +12,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/utils/cert_generator.dart';
 import '../../../core/utils/cert_pdf_generator.dart';
+import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/services/preferences_service.dart';
 import '../../../core/services/email_service.dart';
 import 'generator_event.dart';
@@ -282,6 +283,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       int failureCount = 0;
       String? lastError;
       final failedRecipients = <String>[];
+      await loadCertificateFonts({current.fontFamily, current.backFontFamily});
       // As artes são decodificadas uma vez só para o lote inteiro.
       final frontTemplate = await decodeImageFromList(current.templateImageBytes!);
       final backTemplate =
@@ -528,6 +530,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     required void Function(Map<String, dynamic> args) worker,
     required void Function(String message) onError,
   }) async {
+    // Deixa as fontes do texto carregadas antes de começar a geração.
+    await loadCertificateFonts({
+      args['fontFamily'] as String,
+      if (args['backFontFamily'] != null) args['backFontFamily'] as String,
+    });
+
     Uint8List? result;
     void handle(Object? msg) {
       if (msg is double) {

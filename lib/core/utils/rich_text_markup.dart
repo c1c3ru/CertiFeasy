@@ -78,12 +78,16 @@ class MarkupParagraph {
       };
 
   /// Monta o [TextSpan] desta linha a partir do estilo base do certificado.
-  TextSpan toSpan(TextStyle base) {
+  ///
+  /// [font] aplica a fonte escolhida a um estilo; com ele, trechos em negrito
+  /// e itálico usam a variante própria da fonte em vez de uma imitação.
+  TextSpan toSpan(TextStyle base, {TextStyle Function(TextStyle style)? font}) {
     final scale = switch (heading) { 1 => 1.6, 2 => 1.25, _ => 1.0 };
-    final paragraphStyle = base.copyWith(
+    var paragraphStyle = base.copyWith(
       fontSize: (base.fontSize ?? 14) * scale,
       fontWeight: heading > 0 ? FontWeight.bold : base.fontWeight,
     );
+    if (font != null) paragraphStyle = font(paragraphStyle);
     // Linha vazia: um espaço de largura zero mantém a altura da linha.
     if (runs.isEmpty) return TextSpan(text: '\u200B', style: paragraphStyle);
     return TextSpan(
@@ -93,15 +97,20 @@ class MarkupParagraph {
           if (r.underline) TextDecoration.underline,
           if (r.strike) TextDecoration.lineThrough,
         ];
-        return TextSpan(
-          text: r.text,
-          style: TextStyle(
-            fontWeight: r.bold ? FontWeight.bold : null,
-            fontStyle: r.italic ? FontStyle.italic : null,
-            decoration: decorations.isEmpty ? null : TextDecoration.combine(decorations),
-            decorationColor: base.color,
-          ),
+        var style = TextStyle(
+          fontWeight: r.bold ? FontWeight.bold : null,
+          fontStyle: r.italic ? FontStyle.italic : null,
+          decoration: decorations.isEmpty ? null : TextDecoration.combine(decorations),
+          decorationColor: base.color,
         );
+        if (font != null && (r.bold || r.italic)) {
+          final variant = font(paragraphStyle.merge(style));
+          style = style.copyWith(
+            fontFamily: variant.fontFamily,
+            fontFamilyFallback: variant.fontFamilyFallback,
+          );
+        }
+        return TextSpan(text: r.text, style: style);
       }).toList(),
     );
   }
