@@ -154,6 +154,13 @@ class CertGenerator {
     if (list.isNotEmpty) blocks.add(TextBlock(list));
   }
 
+  /// Largura de arte em que o tamanho da fonte vale em pixels.
+  ///
+  /// O texto acompanha a largura da arte: numa arte de 3000 px a fonte sai
+  /// 3 vezes maior que numa de 1000 px. Assim a prévia na tela e o
+  /// certificado gerado na resolução original ficam na mesma proporção.
+  static const double textReferenceWidth = 1000;
+
   static void drawCertificateContent(
     Canvas canvas,
     Size size,
@@ -164,16 +171,19 @@ class CertGenerator {
     double textPositionX = 0.5,
     double textPositionY = 0.5,
   }) {
+    if (size.isEmpty) return;
+    final scaledFontSize = fontSize * size.width / textReferenceWidth;
+
     final style = TextStyle(
       color: fontColor,
-      fontSize: fontSize,
+      fontSize: scaledFontSize,
       fontFamily: fontFamily,
     );
 
     final gridPaint = Paint()
       ..color = fontColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = fontSize * 0.05;
+      ..strokeWidth = scaledFontSize * 0.05;
 
     // Parse blocos (texto formatado vs tabela Markdown)
     final lines = parsedText.split('\n');
@@ -212,7 +222,7 @@ class CertGenerator {
     // Layout
     double totalHeight = 0;
     List<Size> blockSizes = [];
-    final double spacing = fontSize; 
+    final double spacing = scaledFontSize;
     final maxWidth = size.width * 0.8;
     
     for (int i = 0; i < blocks.length; i++) {
