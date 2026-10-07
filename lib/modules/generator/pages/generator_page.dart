@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,6 +12,7 @@ import '../blocs/generator_bloc.dart';
 import '../blocs/generator_event.dart';
 import '../blocs/generator_state.dart';
 import '../../../core/utils/cert_generator.dart';
+import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/utils/csv_template.dart';
 import '../../../core/utils/markup_editing.dart';
 import '../../../core/utils/rich_text_markup.dart';
@@ -35,20 +37,6 @@ const _colorOptions = [
 const _colorNames = [
   'Preto', 'Branco', 'Azul muito escuro', 'Azul petróleo', 'Roxo', 'Azul',
   'Verde', 'Vermelho', 'Laranja', 'Amarelo', 'Cinza claro', 'Cinza médio',
-];
-
-// ─── Famílias de fontes disponíveis para o certificado ─────────────────────
-const _fontOptions = [
-  'Roboto',
-  'Lato',
-  'Montserrat',
-  'Open Sans',
-  'Playfair Display',
-  'Merriweather',
-  'Dancing Script',
-  'Pacifico',
-  'Oswald',
-  'Raleway',
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1224,12 +1212,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             border: Border.all(color: Colors.white12),
           ),
           child: DropdownButton<String>(
-            value: _fontOptions.contains(currentFontFamily) ? currentFontFamily : _fontOptions.first,
+            value: kCertificateFonts.contains(currentFontFamily) ? currentFontFamily : kCertificateFonts.first,
             isExpanded: true,
             dropdownColor: const Color(0xFF16192B),
             underline: const SizedBox(),
             icon: const Icon(Icons.expand_more_rounded, color: Colors.white54),
-            items: _fontOptions.map((f) => DropdownMenuItem(
+            items: kCertificateFonts.map((f) => DropdownMenuItem(
               value: f,
               child: Text(f, style: const TextStyle(color: Colors.white, fontSize: 14)),
             )).toList(),
@@ -1570,6 +1558,8 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     final currentFontFamily = _isEditingBack ? state.backFontFamily : state.fontFamily;
     final currentFontSize = _isEditingBack ? state.backFontSize : state.fontSize;
     final currentFontColor = _isEditingBack ? state.backFontColorValue : state.fontColorValue;
+    // Baixa a fonte escolhida; a prévia se redesenha quando ela chegar.
+    unawaited(loadCertificateFonts([currentFontFamily]));
 
     return InteractiveViewer(
       minScale: 0.1,
@@ -1637,7 +1627,7 @@ class CertPreviewPainter extends CustomPainter {
     required this.fontColor,
     required this.textPositionX,
     required this.textPositionY,
-  });
+  }) : super(repaint: certificateFontsLoaded); // redesenha quando a fonte termina de carregar
 
   @override
   void paint(Canvas canvas, Size size) {

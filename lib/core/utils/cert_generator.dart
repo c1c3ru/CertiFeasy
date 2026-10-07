@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
+import 'certificate_fonts.dart';
 import 'rich_text_markup.dart';
 
 abstract class ContentBlock {
@@ -10,11 +11,15 @@ abstract class ContentBlock {
   void paint(Canvas canvas, Offset offset, TextStyle style, Paint gridPaint);
 }
 
+/// Aplica a fonte do certificado a um estilo (ver [applyCertificateFont]).
+typedef FontResolver = TextStyle Function(TextStyle style);
+
 class TextBlock extends ContentBlock {
   final List<MarkupParagraph> paragraphs;
+  final FontResolver? font;
   final List<TextPainter> _painters = [];
   double _width = 0;
-  TextBlock(this.paragraphs);
+  TextBlock(this.paragraphs, {this.font});
 
   @override
   Size layout(double maxWidth, TextStyle style) {
@@ -22,7 +27,7 @@ class TextBlock extends ContentBlock {
     _width = 0;
     for (final p in paragraphs) {
       final painter = TextPainter(
-        text: p.toSpan(style),
+        text: p.toSpan(style, font: font),
         textDirection: TextDirection.ltr,
         textAlign: p.textAlign,
       )..layout(maxWidth: maxWidth);
@@ -52,11 +57,12 @@ class TextBlock extends ContentBlock {
 
 class TableBlock extends ContentBlock {
   final List<List<MarkupParagraph>> rows;
+  final FontResolver? font;
   List<double>? _colWidths;
   List<double>? _rowHeights;
   Size? _size;
 
-  TableBlock(this.rows);
+  TableBlock(this.rows, {this.font});
 
   @override
   Size layout(double maxWidth, TextStyle style) {
@@ -75,7 +81,7 @@ class TableBlock extends ContentBlock {
     for (int r = 0; r < rows.length; r++) {
       for (int c = 0; c < rows[r].length; c++) {
         final painter = TextPainter(
-          text: rows[r][c].toSpan(style),
+          text: rows[r][c].toSpan(style, font: font),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.center,
         );
@@ -125,7 +131,7 @@ class TableBlock extends ContentBlock {
       currentX = offset.dx;
       for (int c = 0; c < rows[r].length; c++) {
         final painter = TextPainter(
-          text: rows[r][c].toSpan(style),
+          text: rows[r][c].toSpan(style, font: font),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.center,
         );
@@ -146,12 +152,13 @@ class TableBlock extends ContentBlock {
 
 class CertGenerator {
   /// Adiciona o bloco de texto ignorando linhas vazias no fim, como antes.
-  static void _addTextBlock(List<ContentBlock> blocks, List<MarkupParagraph> paragraphs) {
+  static void _addTextBlock(
+      List<ContentBlock> blocks, List<MarkupParagraph> paragraphs, FontResolver font) {
     final list = List.of(paragraphs);
     while (list.isNotEmpty && list.last.plainText.trim().isEmpty) {
       list.removeLast();
     }
-    if (list.isNotEmpty) blocks.add(TextBlock(list));
+    if (list.isNotEmpty) blocks.add(TextBlock(list, font: font));
   }
 
   /// Largura de arte em que o tamanho da fonte vale em pixels.
@@ -174,6 +181,7 @@ class CertGenerator {
     if (size.isEmpty) return;
     final scaledFontSize = fontSize * size.width / textReferenceWidth;
 
+    TextStyle font(TextStyle style) => applyCertificateFont(style, fontFamily);
     final style = TextStyle(
       color: fontColor,
       fontSize: scaledFontSize,
@@ -194,7 +202,7 @@ class CertGenerator {
 
     for (final line in lines) {
       if (isTableLine(line)) {
-        _addTextBlock(blocks, currentText);
+        _addTextBlock(blocks, currentText, font);
         currentText = [];
 
         final trimmed = line.trim();
@@ -207,16 +215,16 @@ class CertGenerator {
         currentTable.add(splitTableRow(inner).map(parseLine).toList());
       } else {
         if (currentTable.isNotEmpty) {
-          blocks.add(TableBlock(currentTable));
+          blocks.add(TableBlock(currentTable, font: font));
           currentTable = [];
         }
         currentText.add(parseLine(line));
       }
     }
 
-    _addTextBlock(blocks, currentText);
+    _addTextBlock(blocks, currentText, font);
     if (currentTable.isNotEmpty) {
-      blocks.add(TableBlock(currentTable));
+      blocks.add(TableBlock(currentTable, font: font));
     }
 
     // Layout
@@ -277,6 +285,8 @@ class CertGenerator {
   }
 
   /// Desenha o certificado (arte + texto) e devolve a imagem, sem codificar.
+  ///
+  /// A fonte precisa ter sido carregada antes com [loadCertificateFonts].
   static Future<ui.Image> renderCertificate(
     ui.Image templateImage,
     Map<String, dynamic> rowData,
