@@ -1,55 +1,83 @@
 # CertiFeasy 🎓
 
-O **CertiFeasy** é um gerador de certificados em lote desenvolvido em Flutter, feito sob medida para simplificar a criação de certificados para eventos, cursos e workshops.
+O **CertiFeasy** é um gerador de certificados em lote feito em Flutter, pensado para eventos, cursos e workshops. Ele roda no navegador em **https://certifeasy.vercel.app** e também pode ser compilado como app de desktop ou celular.
 
-Através de uma interface moderna e intuitiva, você pode importar uma base de dados (CSV), fazer o upload da arte base do certificado (frente e verso), posicionar os textos dinamicamente e exportar todos os certificados de uma só vez — seja em **PDF** para impressão ou em um arquivo **ZIP (com PNGs)** para distribuição digital.
+Você envia a arte do certificado (frente e, se quiser, verso), carrega a lista de participantes em CSV, escreve o texto com as variáveis de cada pessoa e gera tudo de uma vez: em **PDF** para impressão, em **ZIP com PNGs** ou **por e-mail**, com o certificado de cada participante anexado.
 
 ---
 
 ## ✨ Funcionalidades
 
-- **Geração em Lote:** Importe um arquivo CSV (ex: Nome, Curso, Carga Horária) e gere dezenas de certificados automaticamente.
-- **Templates Frente e Verso:** Suporte a inserção da arte frontal e do verso do certificado, ideal para inclusão de cronogramas ou chancelas.
-- **Posicionamento Visual (Drag & Drop):** Posicione o texto livremente em cima da imagem do certificado de forma visual. O posicionamento utiliza coordenadas normalizadas para manter a precisão independentemente da resolução de exportação.
-- **Formatação de Texto:** Personalize a aparência das variáveis com um seletor nativo de cor (Color Picker), escolha de fontes (Google Fonts) e tamanho de texto ajustável.
-- **Exportação Flexível (Multi-Thread):**
-  - **Arquivo ZIP (PNGs):** Exporta todas as artes separadas em alta qualidade.
-  - **Documento PDF:** Exporte em múltiplos modos: *Somente Frente*, *Somente Verso*, ou *Frente + Verso* (pronto para enviar direto para a gráfica).
-- **Processamento em Background (Isolates):** A geração dos lotes e do PDF acontece em uma thread separada, mantendo a UI 100% responsiva, sem travamentos.
+- **Geração em lote via CSV:** cada linha do CSV vira um certificado. O arquivo pode usar `;` ou `,` como separador e precisa ter as colunas `nome`, `evento`, `data`, `horas` e `email`. Outras colunas também podem ser usadas no texto. O botão **Baixar modelo CSV** traz um exemplo pronto.
+- **Frente e verso:** cada lado tem sua própria arte e seu próprio texto, fonte, tamanho, cor e posição.
+- **Editor de texto com formatação:** barra de ferramentas com negrito, itálico, sublinhado, tachado, título, subtítulo, lista, alinhamento, tabela e desfazer/refazer. As variáveis são escritas como `{coluna}` (ex.: `{nome}`) e podem ser inseridas com um clique.
+- **Pré-visualização em tempo real:** mostra o certificado de cada participante, com setas para navegar entre eles. O tamanho do texto é proporcional à largura da arte, então o certificado gerado sai igual à prévia, qualquer que seja a resolução da imagem.
+- **Aparência:** tamanho da fonte, 10 fontes do Google Fonts (Roboto, Lato, Montserrat, Open Sans, Playfair Display, Merriweather, Dancing Script, Pacifico, Oswald e Raleway) e uma paleta de 12 cores.
+- **Posição do texto:** ajustada por dois controles deslizantes (horizontal e vertical). A posição é guardada em proporção da arte, então vale para qualquer resolução.
+- **Exportação:**
+  - **ZIP (PNGs):** um PNG por certificado, na resolução original da arte. No modo frente e verso, cada participante tem `_frente.png` e `_verso.png`.
+  - **PDF:** nos modos *Somente Frente*, *Somente Verso* ou *Frente + Verso*. No modo frente e verso, as páginas saem intercaladas (frente 1, verso 1, frente 2…), prontas para impressão duplex.
+- **Envio por e-mail:** cada participante recebe o próprio certificado em PDF no endereço da coluna escolhida, com assunto e corpo que aceitam variáveis. O PDF é comprimido automaticamente para caber no limite de 3 MB por anexo. As configurações de e-mail ficam salvas no navegador.
+- **Upload por clique ou arrastando o arquivo** para a área de envio.
+
+### Formatação do texto
+
+A barra de ferramentas escreve uma marcação simples no texto, que você também pode digitar à mão:
+
+| Marcação | Resultado |
+| --- | --- |
+| `**texto**` | **negrito** |
+| `*texto*` | *itálico* |
+| `__texto__` | sublinhado |
+| `~~texto~~` | ~~tachado~~ |
+| `# texto` / `## texto` no início da linha | título / subtítulo |
+| `- texto` no início da linha | item de lista |
+| `[esquerda]`, `[direita]` ou `[justificado]` no início da linha | alinhamento (o padrão é centralizado) |
+| linhas no formato `\| a \| b \|` | tabela |
+
+Use `\` antes de um desses caracteres para escrevê-lo literalmente. Os valores que vêm do CSV são sempre tratados como texto, então um nome com `*` ou `#` não altera a formatação.
 
 ---
 
 ## 🛠 Arquitetura e Tecnologias
 
-- **Framework:** Flutter (versão 3.44+)
-- **Gerência de Estado:** [flutter_bloc](https://pub.dev/packages/flutter_bloc)
-- **Injeção de Dependências & Rotas:** [flutter_modular](https://pub.dev/packages/flutter_modular)
-- **PDF e Impressão:** [pdf](https://pub.dev/packages/pdf) e [printing](https://pub.dev/packages/printing)
-- **Manipulação CSV:** [csv](https://pub.dev/packages/csv)
-- **Design System:** Baseado em tons escuros (Dark Mode) focados em concentração, combinados com a tipografia *Plus Jakarta Sans*.
+- **Framework:** Flutter 3.47.6 (versão fixada no deploy), Dart 3.9+
+- **Gerência de estado:** [flutter_bloc](https://pub.dev/packages/flutter_bloc)
+- **Injeção de dependências e rotas:** [flutter_modular](https://pub.dev/packages/flutter_modular)
+- **PDF:** [pdf](https://pub.dev/packages/pdf) e [printing](https://pub.dev/packages/printing)
+- **CSV e ZIP:** [csv](https://pub.dev/packages/csv) e [archive](https://pub.dev/packages/archive)
+- **Fontes:** [google_fonts](https://pub.dev/packages/google_fonts)
+- **Envio de e-mail:** função serverless da Vercel em Node (`api/email.js`) com [nodemailer](https://nodemailer.com) e Gmail
+- **Processamento:** no app instalado, a geração do ZIP e do PDF roda em um Isolate separado; no navegador, roda na própria página, com barra de progresso.
+- **Design:** tema escuro com a tipografia *Plus Jakarta Sans*.
 
 ---
 
-## 🚀 Como Rodar o Projeto (Linux)
+## 🚀 Como Rodar o Projeto
 
-O aplicativo foi projetado com foco em rodar nativamente em ambientes Desktop (Linux/Windows/macOS). Para rodá-lo no Ubuntu/Debian, você precisará dos pacotes nativos de compilação C++ e do GTK3.
+Instale o [Flutter](https://docs.flutter.dev/get-started/install) e, na pasta do projeto:
 
-### 1. Instalar dependências nativas
-Se você utiliza Linux, assegure-se de que possui as ferramentas de compilação instaladas. Abra seu terminal e rode:
+```bash
+flutter pub get
+flutter run -d chrome   # versão web, a mesma publicada na Vercel
+flutter test            # testes automatizados
+```
+
+O envio de e-mails depende da função `api/email.js`, que roda no deploy da Vercel.
+
+### Desktop (Linux)
+
+Para rodar como app de desktop no Ubuntu/Debian, instale antes as ferramentas de compilação:
 
 ```bash
 sudo apt update
 sudo apt install -y clang ninja-build g++ pkg-config libgtk-3-dev
-```
-
-### 2. Rodar o App
-Navegue até a pasta do projeto e inicie a compilação:
-
-```bash
-cd certifeasy
-flutter pub get
 flutter run -d linux
 ```
+
+### Deploy na Vercel
+
+O `vercel.json` já instala o Flutter 3.47.6 e roda `flutter build web`, publicando a pasta `build/web` junto com a função `api/email.js`.
 
 ---
 
@@ -64,18 +92,18 @@ O endpoint `/api/email` só envia e-mails para quem informar o **código de aces
 | `EMAIL_API_TOKEN` | Sim | Código de acesso digitado no app (use um valor longo e aleatório) |
 | `EMAIL_ALLOWED_ORIGINS` | Não | Origens permitidas, separadas por vírgula (ex.: `https://certifeasy.vercel.app`) |
 
-Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada requisição aceita um destinatário e um PDF de até 3 MB.
+Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada requisição aceita um destinatário e um PDF de até 3 MB; esse teto vem do limite de 4,5 MB por requisição da Vercel, já que o anexo vai em base64. O Gmail envia no máximo cerca de 500 e-mails por dia.
 
 ---
 
 ## 📝 Uso Básico
 
-1. Na aba **Upload de Arquivos**, insira sua arte (JPG ou PNG) de Frente (e opcionalmente de Verso).
-2. Adicione seu arquivo `.csv` contendo a lista dos participantes.
-3. Defina se o modo do PDF gerado será *Somente Frente*, *Somente Verso* ou *Frente + Verso*.
-4. Avance para a aba **Texto e Variáveis** para definir as chaves do CSV no formato `{Coluna}` (ex: `{Nome}`).
-5. Use a aba **Aparência do Texto** para arrastar os campos até o local correto e aplicar cor, fonte e tamanho desejados.
-6. Clique no botão de exportação e escolha ZIP ou PDF.
+1. Na aba **Upload**, envie a arte da frente (e, se quiser, a do verso) e o arquivo CSV dos participantes. Se precisar, use **Baixar modelo CSV**.
+2. Ainda em **Upload**, escolha o modo do PDF: *Somente Frente*, *Somente Verso* ou *Frente + Verso*.
+3. Na aba **Texto & Variáveis**, escreva o texto de cada lado usando as variáveis do CSV, como `{nome}` e `{horas}`.
+4. Na aba **Aparência**, ajuste tamanho, fonte, cor e posição do texto, conferindo na pré-visualização.
+5. Clique em **Gerar PDF** ou **Gerar ZIP (PNGs)** para baixar os certificados.
+6. Para enviar por e-mail, vá à aba **E-mails**, preencha o e-mail para respostas, o código de acesso, o assunto e a mensagem, escolha a coluna com os endereços e clique em **Enviar Certificados**.
 
 ---
 

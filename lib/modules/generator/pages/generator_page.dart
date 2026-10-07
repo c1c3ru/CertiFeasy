@@ -891,7 +891,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Somente Verso: o PDF terá apenas o template do verso, sem texto dinâmico.',
+                    'Somente Verso: o PDF terá só o verso de cada participante, com o texto do verso.',
                     style: TextStyle(color: Color(0xFFE8973A), fontSize: 11.5),
                   ),
                 ),
