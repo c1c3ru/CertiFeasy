@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../../modules/generator/blocs/generator_state.dart';
 import 'cert_generator.dart';
+import 'image_compression.dart';
 
 /// Utilitário para geração de PDF em lote de certificados.
 ///
@@ -101,14 +102,18 @@ class CertPdfGenerator {
     return await pdf.save();
   }
 
+  /// [frontFormat]/[backFormat] fixam o tamanho da página quando a imagem foi
+  /// reduzida para caber no e-mail (o tamanho impresso não muda).
   static Future<Uint8List> generateSinglePdf({
     required Uint8List frontImageBytes,
     Uint8List? backImageBytes,
     required PdfMode mode,
+    PdfPageFormat? frontFormat,
+    PdfPageFormat? backFormat,
   }) async {
     final pdf = pw.Document();
 
-    final pageFormatFront = await _pdfImageSize(frontImageBytes);
+    final pageFormatFront = frontFormat ?? await _pdfImageSize(frontImageBytes);
     final memoryImageFront = pw.MemoryImage(frontImageBytes);
 
     if (mode != PdfMode.backOnly) {
@@ -127,7 +132,7 @@ class CertPdfGenerator {
     }
 
     if (mode != PdfMode.frontOnly && backImageBytes != null) {
-      final pageFormatBack = await _pdfImageSize(backImageBytes);
+      final pageFormatBack = backFormat ?? await _pdfImageSize(backImageBytes);
       final memoryImageBack = pw.MemoryImage(backImageBytes);
       pdf.addPage(
         pw.Page(
@@ -146,6 +151,36 @@ class CertPdfGenerator {
     return await pdf.save();
   }
 
+  /// Monta o PDF de um certificado com as páginas em JPEG, reduzindo a
+  /// qualidade e depois a resolução até o arquivo caber em [maxBytes].
+  /// O tamanho da página no PDF continua o da arte original.
+  /// Se nem a última tentativa couber, devolve essa versão (a menor).
+  static Future<Uint8List> generateSinglePdfWithinLimit({
+    required ui.Image front,
+    ui.Image? back,
+    required PdfMode mode,
+    required int maxBytes,
+  }) async {
+    final frontFormat = pageFormatForPixels(front.width, front.height);
+    final backFormat = back == null ? null : pageFormatForPixels(back.width, back.height);
+
+    late Uint8List pdfBytes;
+    for (final (scale, quality) in _compressionSteps) {
+      pdfBytes = await generateSinglePdf(
+        frontImageBytes: await encodeJpeg(front, quality: quality, scale: scale),
+        backImageBytes: back == null ? null : await encodeJpeg(back, quality: quality, scale: scale),
+        mode: mode,
+        frontFormat: frontFormat,
+        backFormat: backFormat,
+      );
+      if (pdfBytes.length <= maxBytes) break;
+    }
+    return pdfBytes;
+  }
+
+  /// Tentativas de compressão: (escala da imagem, qualidade JPEG).
+  static const _compressionSteps = [(1.0, 85), (1.0, 70), (0.75, 70), (0.5, 70)];
+
   // ─── Helpers privados ─────────────────────────────────────────────────────
 
   static Future<ui.Image> _decodeImage(Uint8List bytes) async {
@@ -158,13 +193,15 @@ class CertPdfGenerator {
   /// Usa 96 DPI como referência para converter pixels → pontos.
   static Future<PdfPageFormat> _pdfImageSize(Uint8List bytes) async {
     final img = await _decodeImage(bytes);
+    return pageFormatForPixels(img.width, img.height);
+  }
+
+  /// Tamanho de página (em pontos PDF) de uma imagem de [width]×[height] px a 96 DPI.
+  static PdfPageFormat pageFormatForPixels(int width, int height) {
     const double dpi = 96.0;
     const double pointsPerInch = 72.0;
-    final double pxToPoint = pointsPerInch / dpi;
-    return PdfPageFormat(
-      img.width * pxToPoint,
-      img.height * pxToPoint,
-    );
+    const double pxToPoint = pointsPerInch / dpi;
+    return PdfPageFormat(width * pxToPoint, height * pxToPoint);
   }
 }
 

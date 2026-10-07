@@ -250,6 +250,33 @@ class CertGenerator {
     double textPositionX = 0.5,
     double textPositionY = 0.5,
   }) async {
+    final img = await renderCertificate(
+      templateImage,
+      rowData,
+      textTemplate,
+      fontSize,
+      fontFamily,
+      fontColor,
+      textPositionX: textPositionX,
+      textPositionY: textPositionY,
+    );
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    img.dispose();
+
+    return byteData!.buffer.asUint8List();
+  }
+
+  /// Desenha o certificado (arte + texto) e devolve a imagem, sem codificar.
+  static Future<ui.Image> renderCertificate(
+    ui.Image templateImage,
+    Map<String, dynamic> rowData,
+    String textTemplate,
+    double fontSize,
+    String fontFamily,
+    Color fontColor, {
+    double textPositionX = 0.5,
+    double textPositionY = 0.5,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
@@ -271,9 +298,6 @@ class CertGenerator {
     );
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(size.width.toInt(), size.height.toInt());
-    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-
-    return byteData!.buffer.asUint8List();
+    return picture.toImage(size.width.toInt(), size.height.toInt());
   }
 }

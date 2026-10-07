@@ -282,6 +282,12 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       int failureCount = 0;
       String? lastError;
       final failedRecipients = <String>[];
+      // As artes são decodificadas uma vez só para o lote inteiro.
+      final frontTemplate = await decodeImageFromList(current.templateImageBytes!);
+      final backTemplate =
+          current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null
+              ? await decodeImageFromList(current.backTemplateImageBytes!)
+              : null;
       for (int i = 0; i < current.mappedData.length; i++) {
         final row = current.mappedData[i];
         final recipientEmail = row[current.emailColumn]?.toString().trim();
@@ -292,45 +298,16 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           continue;
         }
 
-        // 1. Gera as imagens do certificado desta linha (frente e/ou verso, com texto)
-        final certBytes = await CertGenerator.generateCertificateImage(
-          await decodeImageFromList(current.templateImageBytes!),
-          row,
-          current.textTemplate,
-          current.fontSize,
-          current.fontFamily,
-          Color(current.fontColorValue),
-          textPositionX: current.textPositionX,
-          textPositionY: current.textPositionY,
-        );
-
-        Uint8List? backBytes;
-        if (current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null) {
-          backBytes = await CertGenerator.generateCertificateImage(
-            await decodeImageFromList(current.backTemplateImageBytes!),
-            row,
-            current.backTextTemplate,
-            current.backFontSize,
-            current.backFontFamily,
-            Color(current.backFontColorValue),
-            textPositionX: current.backTextPositionX,
-            textPositionY: current.backTextPositionY,
-          );
-        }
-
-        // 2. Transforma as imagens geradas num PDF
-        final pdfBytes = await CertPdfGenerator.generateSinglePdf(
-          frontImageBytes: certBytes,
-          backImageBytes: backBytes,
-          mode: current.pdfMode,
-        );
+        // 1. Gera o PDF do certificado desta linha, já comprimido para o e-mail
+        final pdfBytes = await _buildEmailPdf(current, row, frontTemplate, backTemplate);
 
         // O servidor recusa anexos acima de 3 MB: avisa antes de tentar o envio.
         if (pdfBytes.length > kMaxEmailAttachmentBytes) {
           failureCount++;
           failedRecipients.add(recipientEmail);
-          lastError = 'o certificado ficou com ${(pdfBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB '
-              '(máximo 3 MB). Use uma imagem de template menor.';
+          lastError = 'mesmo comprimido, o certificado ficou com '
+              '${(pdfBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB (máximo 3 MB). '
+              'Use uma imagem de template com menos pixels.';
           add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
           continue;
         }
@@ -379,6 +356,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         // Evitar rate limit (Gmail tem limite de 500 envios/dia)
         await Future.delayed(const Duration(milliseconds: 550));
       }
+      frontTemplate.dispose();
+      backTemplate?.dispose();
 
       final updatedState = _loaded ?? current;
       emit(updatedState.copyWith(isSendingEmails: false));
@@ -397,6 +376,49 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       emit(GeneratorError('Erro durante envio de e-mails: $e'));
       emit(updatedState.copyWith(isSendingEmails: false));
     }
+  }
+
+  /// Gera o PDF de um participante para anexar no e-mail.
+  ///
+  /// As páginas vão em JPEG, reduzidas até caber no limite do servidor.
+  Future<Uint8List> _buildEmailPdf(
+    GeneratorLoaded current,
+    Map<String, dynamic> row,
+    ui.Image frontTemplate,
+    ui.Image? backTemplate,
+  ) async {
+    final front = await CertGenerator.renderCertificate(
+      frontTemplate,
+      row,
+      current.textTemplate,
+      current.fontSize,
+      current.fontFamily,
+      Color(current.fontColorValue),
+      textPositionX: current.textPositionX,
+      textPositionY: current.textPositionY,
+    );
+    final back = backTemplate == null
+        ? null
+        : await CertGenerator.renderCertificate(
+            backTemplate,
+            row,
+            current.backTextTemplate,
+            current.backFontSize,
+            current.backFontFamily,
+            Color(current.backFontColorValue),
+            textPositionX: current.backTextPositionX,
+            textPositionY: current.backTextPositionY,
+          );
+
+    final pdfBytes = await CertPdfGenerator.generateSinglePdfWithinLimit(
+      front: front,
+      back: back,
+      mode: current.pdfMode,
+      maxBytes: kMaxEmailAttachmentBytes,
+    );
+    front.dispose();
+    back?.dispose();
+    return pdfBytes;
   }
 
   // ─── ZIP (PNGs) ───────────────────────────────────────────────────────────
