@@ -89,7 +89,7 @@ void main() {
         'Trabalho: Pesquisa #1 **Aplicada** — '
         'Orientador: Profa. Ana Costa (ana.costa@exemplo.com)',
       );
-      expect(out, contains(r'\\*\\*Aplicada\\*\\*'));
+      expect(out, contains(r'\*\*Aplicada\*\*'));
     });
 
     test('substituição em uma passada só', () {
