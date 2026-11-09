@@ -207,7 +207,7 @@ void main() {
       'aceita CSV antigo sem campos de orientador',
       build: () => generatorBloc,
       act: (bloc) => bloc.add(LoadFilesEvent(
-        csvContent: 'nome;evento;data;horas;email\\nAna;Feira;2026;4;ana@exemplo.com',
+        csvContent: 'nome;evento;data;horas;email\nAna;Feira;2026;4;ana@exemplo.com',
       )),
       expect: () => [
         isA<GeneratorSuccess>(),
@@ -221,7 +221,7 @@ void main() {
       'mantém campos opcionais mesmo com valores vazios',
       build: () => generatorBloc,
       act: (bloc) => bloc.add(LoadFilesEvent(
-        csvContent: 'nome;evento;data;horas;email;orientador;email_orientador;nome_trabalho\\n'
+        csvContent: 'nome;evento;data;horas;email;orientador;email_orientador;nome_trabalho\n'
             'Ana;Feira;2026;4;ana@exemplo.com;;;Pesquisa Aplicada',
       )),
       expect: () => [
