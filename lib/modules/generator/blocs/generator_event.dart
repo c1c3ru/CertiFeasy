@@ -38,6 +38,29 @@ class UpdateTextPositionEvent extends GeneratorEvent {
   UpdateTextPositionEvent({this.dx, this.dy, this.isBack = false});
 }
 
+/// Campos complementares do certificado, por participante.
+enum AcademicField {
+  orientador('orientador'),
+  emailOrientador('email_orientador'),
+  nomeTrabalho('nome_trabalho');
+
+  const AcademicField(this.column);
+  final String column;
+}
+
+/// Atualiza um único campo de uma linha; nunca altera o CSV original em disco.
+class UpdateAcademicFieldEvent extends GeneratorEvent {
+  final int rowIndex;
+  final AcademicField field;
+  final String value;
+
+  UpdateAcademicFieldEvent({
+    required this.rowIndex,
+    required this.field,
+    required this.value,
+  });
+}
+
 class SelectPreviewRowEvent extends GeneratorEvent {
   final int index;
   SelectPreviewRowEvent(this.index);
