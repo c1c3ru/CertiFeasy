@@ -1,4 +1,3 @@
-import 'package:certifeasy/modules/generator/blocs/generator_event.dart';
 import 'package:certifeasy/modules/generator/widgets/participant_academic_fields.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
