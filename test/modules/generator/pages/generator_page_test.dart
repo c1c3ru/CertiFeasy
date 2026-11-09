@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:certifeasy/modules/generator/pages/generator_page.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_bloc.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_event.dart';
+import 'package:certifeasy/modules/generator/blocs/generator_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -62,6 +63,38 @@ void main() {
     bloc.close();
   });
   
+  testWidgets('exibe formulário acadêmico após importar CSV antigo',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+    final bloc = GeneratorBloc();
+    addTearDown(bloc.close);
+    await tester.pumpWidget(createWidgetUnderTest(bloc));
+    await tester.pumpAndSettle();
+
+    bloc.add(LoadFilesEvent(
+      csvContent: 'nome;evento;data;horas;email\\n'
+          'Ana;Mostra;2026;8;ana@exemplo.com',
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('academic-info-editor')), findsOneWidget);
+    expect(find.byKey(const Key('academic-orientador')), findsOneWidget);
+    expect(find.byKey(const Key('academic-email-orientador')), findsOneWidget);
+    expect(find.byKey(const Key('academic-nome-trabalho')), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('academic-orientador')));
+    await tester.enterText(
+      find.byKey(const Key('academic-orientador')),
+      'Prof. João',
+    );
+    await tester.pumpAndSettle();
+
+    final state = bloc.state as GeneratorLoaded;
+    expect(state.mappedData.single['orientador'], 'Prof. João');
+    expect(state.csvHeaders, contains('orientador'));
+  });
+
   testWidgets('Shows variable chips when CSV is loaded', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
