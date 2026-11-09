@@ -106,9 +106,9 @@ void main() {
 
     test('canSendEmails requires the access code', () {
       final base = GeneratorLoaded(
-        csvData: const [['nome'], ['Ana']],
-        csvHeaders: const ['nome'],
-        mappedData: const [{'nome': 'Ana'}],
+        csvData: const [['nome', 'email'], ['Ana', 'ana@exemplo.com']],
+        csvHeaders: const ['nome', 'email'],
+        mappedData: const [{'nome': 'Ana', 'email': 'ana@exemplo.com'}],
         templateImageBytes: dummyImageBytes,
         senderEmail: 'contato@exemplo.com',
       );
@@ -141,9 +141,94 @@ void main() {
       expect: () => [
         isA<GeneratorSuccess>(),
         isA<GeneratorLoaded>()
-            .having((s) => s.csvHeaders, 'headers', ['nome', 'evento', 'data', 'horas', 'email'])
+            .having((s) => s.csvHeaders, 'headers', [
+              'nome', 'evento', 'data', 'horas', 'email',
+              'orientador', 'email_orientador', 'nome_trabalho',
+            ])
             .having((s) => s.mappedData.length, 'data length', 2)
-            .having((s) => s.mappedData[0]['nome'], 'first row nome', 'João Silva'),
+            .having((s) => s.mappedData[0]['nome'], 'first row nome', 'João Silva')
+            .having((s) => s.mappedData[0]['orientador'], 'orientador', 'Prof. Carlos Lima')
+            .having((s) => s.mappedData[0]['nome_trabalho'], 'nome do trabalho', 'Inovação no Ensino')
+            .having((s) => s.mappedData[1]['email_orientador'], 'email orientador', 'ana.costa@exemplo.com'),
+      ],
+    );
+
+    test('bloqueia envio quando a coluna salva não pertence ao CSV atual', () {
+      final state = GeneratorLoaded(
+        csvData: const [
+          ['nome', 'email', 'email_orientador'],
+          ['Ana', 'ana@exemplo.com', 'prof@exemplo.com'],
+        ],
+        csvHeaders: const ['nome', 'email', 'email_orientador'],
+        mappedData: const [
+          {'nome': 'Ana', 'email': 'ana@exemplo.com',
+           'email_orientador': 'prof@exemplo.com'},
+        ],
+        templateImageBytes: dummyImageBytes,
+        senderEmail: 'contato@exemplo.com',
+        emailAccessCode: 'segredo',
+        emailColumn: 'email_antigo',
+      );
+      expect(state.hasValidEmailColumn, isFalse);
+      expect(state.canSendEmails, isFalse);
+      expect(state.copyWith(emailColumn: 'email').canSendEmails, isTrue);
+      // Uma seleção deliberada pode usar outra coluna, mas nunca é automática.
+      expect(state.copyWith(emailColumn: 'email_orientador').canSendEmails, isTrue);
+    });
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'rejeita coluna ausente antes de gerar ou enviar qualquer e-mail',
+      seed: () => GeneratorLoaded(
+        csvData: const [['nome', 'email'], ['Ana', 'ana@exemplo.com']],
+        csvHeaders: const ['nome', 'email'],
+        mappedData: const [{'nome': 'Ana', 'email': 'ana@exemplo.com'}],
+        templateImageBytes: dummyImageBytes,
+        senderEmail: 'contato@exemplo.com',
+        emailAccessCode: 'segredo',
+        emailColumn: 'email_antigo',
+      ),
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(SendEmailsBatchEvent()),
+      expect: () => [
+        isA<GeneratorError>().having(
+          (s) => s.message,
+          'erro explicativo',
+          contains('email_antigo'),
+        ),
+        isA<GeneratorLoaded>().having(
+          (s) => s.isSendingEmails,
+          'não inicia envio',
+          false,
+        ),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'aceita CSV antigo sem campos de orientador',
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(
+        csvContent: 'nome;evento;data;horas;email\nAna;Feira;2026;4;ana@exemplo.com',
+      )),
+      expect: () => [
+        isA<GeneratorSuccess>(),
+        isA<GeneratorLoaded>()
+            .having((s) => s.csvHeaders.length, 'colunas antigas', 5)
+            .having((s) => s.mappedData.single['nome'], 'nome', 'Ana'),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'mantém campos opcionais mesmo com valores vazios',
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(
+        csvContent: 'nome;evento;data;horas;email;orientador;email_orientador;nome_trabalho\n'
+            'Ana;Feira;2026;4;ana@exemplo.com;;;Pesquisa Aplicada',
+      )),
+      expect: () => [
+        isA<GeneratorSuccess>(),
+        isA<GeneratorLoaded>()
+            .having((s) => s.mappedData.single['nome_trabalho'], 'trabalho', 'Pesquisa Aplicada')
+            .having((s) => s.mappedData.single['orientador'], 'orientador vazio', ''),
       ],
     );
 

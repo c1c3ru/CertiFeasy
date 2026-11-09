@@ -17,6 +17,7 @@ import '../../../core/utils/csv_template.dart';
 import '../../../core/utils/markup_editing.dart';
 import '../../../core/utils/rich_text_markup.dart';
 import '../widgets/rich_text_editor.dart';
+import '../widgets/email_recipient_column_selector.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
 const _colorOptions = [
@@ -617,40 +618,14 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         _buildSectionLabel('Coluna de E-mail (Destinatários)'),
         const SizedBox(height: 12),
         
-        if (state.csvHeaders.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: state.csvHeaders.contains(state.emailColumn) 
-                  ? state.emailColumn 
-                  : state.csvHeaders.first,
-                isExpanded: true,
-                dropdownColor: const Color(0xFF16192B),
-                style: const TextStyle(color: Colors.white),
-                icon: const Icon(Icons.arrow_drop_down, color: Colors.white54),
-                items: state.csvHeaders.map((header) {
-                  return DropdownMenuItem(
-                    value: header,
-                    child: Text(header),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    _bloc.add(UpdateEmailConfigEvent(emailColumn: val));
-                  }
-                },
-              ),
-            ),
-          )
-        else
-          const Text('Carregue um CSV primeiro.', style: TextStyle(color: Colors.white54, fontSize: 12)),
-          
+        EmailRecipientColumnSelector(
+          headers: state.csvHeaders,
+          selectedColumn: state.emailColumn,
+          onChanged: (column) => _bloc.add(
+            UpdateEmailConfigEvent(emailColumn: column),
+          ),
+        ),
+
         const SizedBox(height: 40),
         
         // Progresso
@@ -1095,7 +1070,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Use {nome_da_coluna} para valores dinâmicos. Ex: {nome}, {horas}.\n'
+                  'Use {nome_da_coluna} para valores dinâmicos. Ex: {nome}, {horas}, {orientador}, {nome_trabalho}.\n'
                   'Formate pela barra ou digitando: **negrito**, *itálico*, __sublinhado__, '
                   '~~tachado~~, # Título, - lista e tabelas | Coluna 1 | Coluna 2 |.',
                   style: TextStyle(color: Colors.white60, fontSize: 12.5),
@@ -1153,7 +1128,6 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   Widget _buildAppearanceContent(GeneratorLoaded state) {
     final currentFontSize = _isEditingBack ? state.backFontSize : state.fontSize;
     final currentFontFamily = _isEditingBack ? state.backFontFamily : state.fontFamily;
-    final currentFontColor = _isEditingBack ? state.backFontColorValue : state.fontColorValue;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

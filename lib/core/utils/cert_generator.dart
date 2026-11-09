@@ -93,8 +93,12 @@ class TableBlock extends ContentBlock {
     }
 
     // Adiciona padding
-    for (int c = 0; c < numCols; c++) _colWidths![c] += cellPadding * 2;
-    for (int r = 0; r < rows.length; r++) _rowHeights![r] += cellPadding * 2;
+    for (int c = 0; c < numCols; c++) {
+      _colWidths![c] += cellPadding * 2;
+    }
+    for (int r = 0; r < rows.length; r++) {
+      _rowHeights![r] += cellPadding * 2;
+    }
 
     double totalWidth = _colWidths!.fold(0.0, (a, b) => a + b);
     double totalHeight = _rowHeights!.fold(0.0, (a, b) => a + b);

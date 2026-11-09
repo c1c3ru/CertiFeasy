@@ -76,6 +76,22 @@ void main() {
       expect(fillTemplate('{v}', {'v': 'a\u0000b\u0007c'}), 'abc');
     });
 
+    test('novos placeholders exibem conteúdo como texto seguro', () {
+      const template = 'Trabalho: {nome_trabalho} — Orientador: {orientador} '
+          '({email_orientador})';
+      final out = fillTemplate(template, {
+        'nome_trabalho': 'Pesquisa #1 **Aplicada**',
+        'orientador': 'Profa. Ana Costa',
+        'email_orientador': 'ana.costa@exemplo.com',
+      });
+      expect(
+        stripMarkup(out),
+        'Trabalho: Pesquisa #1 **Aplicada** — '
+        'Orientador: Profa. Ana Costa (ana.costa@exemplo.com)',
+      );
+      expect(out, contains(r'\*\*Aplicada\*\*'));
+    });
+
     test('substituição em uma passada só', () {
       expect(fillTemplate('{a} {b}', {'a': '{b}', 'b': 'X'}), '{b} X');
       expect(fillTemplate('{desconhecida}', {'a': '1'}), '{desconhecida}');
