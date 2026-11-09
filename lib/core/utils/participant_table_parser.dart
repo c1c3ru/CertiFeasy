@@ -101,17 +101,27 @@ class ParticipantTableParser {
       }
     }
 
+    // A carga horária continua obrigatória nos certificados tradicionais.
+    // Apenas apresentações com orientador e título podem omitir essa coluna.
+    final isAcademicPresentation =
+        headers.contains('orientador') && headers.contains('nome_trabalho');
     const mandatory = ['nome', 'evento', 'data', 'email'];
-    final missing = mandatory.where((header) => !headers.contains(header)).toList();
+    final requiredHeaders = [
+      ...mandatory,
+      if (!isAcademicPresentation) 'horas',
+    ];
+    final missing =
+        requiredHeaders.where((header) => !headers.contains(header)).toList();
     if (missing.isNotEmpty) {
       throw FormatException(
         'O CSV precisa conter as colunas: ${missing.join(', ')}. '
-        'A coluna horas é opcional.',
+        'A coluna horas só pode ser omitida em apresentações de trabalhos '
+        'com orientador e título do trabalho.',
       );
     }
 
-    // A mostra científica não informa carga horária. A variável {horas}
-    // continua definida, com texto vazio, sem quebrar modelos existentes.
+    // Na apresentação acadêmica, mantemos {horas} com valor vazio para
+    // preservar a interface e os templates já existentes.
     if (!headers.contains('horas')) headers.add('horas');
 
     final mappedData = <Map<String, dynamic>>[];
