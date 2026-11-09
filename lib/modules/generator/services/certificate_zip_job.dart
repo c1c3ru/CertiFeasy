@@ -49,7 +49,7 @@ Future<void> generateZipJob(Map<String, dynamic> args, void Function(Object mess
 
     ui.Image? backTemplateImage;
     if (generateBack) {
-      final codec = await ui.instantiateImageCodec(backImgBytes!);
+      final codec = await ui.instantiateImageCodec(backImgBytes);
       final frameInfo = await codec.getNextFrame();
       backTemplateImage = frameInfo.image;
     }
