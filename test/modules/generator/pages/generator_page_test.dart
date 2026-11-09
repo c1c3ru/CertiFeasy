@@ -40,7 +40,7 @@ void main() {
     
     // Default tab is 0, so upload content should be visible
     expect(find.text('Template Frente'), findsOneWidget);
-    expect(find.text('Arquivo CSV'), findsOneWidget);
+    expect(find.text('Arquivo CSV / Excel'), findsOneWidget);
     
     bloc.close();
   });
