@@ -94,7 +94,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   Future<void> _pickCSV() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv'],
+      allowedExtensions: ['csv', 'tsv', 'txt'],
       withData: true,
     );
     if (result != null && result.files.first.bytes != null) {
@@ -766,7 +766,9 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           onTap: _pickCSV,
           onDrop: (details) async {
             final file = details.files.first;
-            if (file.name.toLowerCase().endsWith('.csv')) {
+            if (file.name.toLowerCase().endsWith('.csv') ||
+                file.name.toLowerCase().endsWith('.tsv') ||
+                file.name.toLowerCase().endsWith('.txt')) {
               final bytes = await file.readAsBytes();
               String csvString;
               try {
@@ -777,6 +779,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
               _bloc.add(LoadFilesEvent(csvContent: csvString));
             }
           },
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Importe CSV (.csv) ou dados tabulados de planilha (.tsv/.txt). '
+          'Em apresentações com orientador e título, a coluna horas pode faltar.',
+          style: TextStyle(color: Colors.white60, fontSize: 11.5),
         ),
         const SizedBox(height: 8),
         Align(
