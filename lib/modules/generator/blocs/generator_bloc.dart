@@ -5,12 +5,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/utils/cert_generator.dart';
 import '../../../core/utils/certificate_file_names.dart';
+import '../../../core/utils/participant_table_parser.dart';
 import '../services/certificate_zip_job.dart';
 import '../../../core/utils/cert_pdf_generator.dart';
 import '../../../core/utils/certificate_fonts.dart';
@@ -84,37 +84,24 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     List<Map<String, dynamic>> newMappedData = current.mappedData;
 
     if (event.csvContent != null) {
-      final sanitizedContent = event.csvContent!.replaceAll('\r\n', '\n');
-      final delimiter = sanitizedContent.split('\n').first.contains(';') ? ';' : ',';
-      final rows = const CsvToListConverter(eol: '\n').convert(
-        sanitizedContent,
-        fieldDelimiter: delimiter,
-      );
-      if (rows.isNotEmpty) {
-        newCsvData = rows;
-        // Remove espaços e caracteres invisíveis (como BOM \ufeff) dos cabeçalhos
-        newHeaders = rows.first.map((e) => e.toString().replaceAll(RegExp(r'[\ufeff\u200b]'), '').trim()).toList();
-        
-        final requiredHeaders = ['nome', 'evento', 'data', 'horas', 'email'];
-        final lowerHeaders = newHeaders.map((e) => e.toLowerCase()).toList();
-        final missingHeaders = requiredHeaders.where((h) => !lowerHeaders.contains(h)).toList();
-        
-        if (missingHeaders.isNotEmpty) {
-          emit(GeneratorError('O CSV deve conter as colunas obrigatórias: ${missingHeaders.join(', ')}'));
-          // Restaura o estado anterior para não perder a imagem/CSV já carregados
-          emit(current);
-          return;
-        }
-
-        newMappedData = [
-          for (int i = 1; i < rows.length; i++)
-            {
-              for (int j = 0; j < newHeaders.length; j++)
-                if (j < rows[i].length) newHeaders[j]: rows[i][j],
-            }
-        ];
+      try {
+        final parsed = ParticipantTableParser.parse(event.csvContent!);
+        newCsvData = parsed.csvData;
+        newHeaders = parsed.headers;
+        newMappedData = parsed.mappedData;
+      } on FormatException catch (error) {
+        emit(GeneratorError(error.message));
+        // CSV inválido não apaga o arquivo ou as alterações anteriores.
+        emit(current);
+        return;
+      } on Exception {
+        emit(GeneratorError(
+          'Não foi possível ler os participantes. Confira o formato CSV/TSV.',
+        ));
+        emit(current);
+        return;
       }
-      emit(GeneratorSuccess('CSV carregado com sucesso!'));
+      emit(GeneratorSuccess('Dados dos participantes carregados com sucesso!'));
     }
 
     if (event.imageBytes != null) {
