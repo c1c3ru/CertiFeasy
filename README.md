@@ -9,6 +9,7 @@ Você envia a arte do certificado (frente e, se quiser, verso), carrega a lista 
 ## ✨ Funcionalidades
 
 - **Geração em lote via CSV:** cada linha do CSV vira um certificado. O arquivo pode usar `;` ou `,` como separador e precisa ter as colunas `nome`, `evento`, `data`, `horas` e `email`. O modelo inclui também as colunas **opcionais** `orientador`, `email_orientador` e `nome_trabalho`. Outras colunas também podem ser usadas no texto. O botão **Baixar modelo CSV** traz um exemplo pronto.
+- **Campos acadêmicos na interface:** após importar o CSV, a aba **Upload** mostra três campos editáveis — **Nome do orientador**, **E-mail do orientador** e **Nome do trabalho** — para o participante selecionado. Use as setas do formulário para editar os registros individualmente. As alterações atualizam a prévia e as exportações nesta sessão, mas não alteram o CSV original; reenviar um CSV substitui os dados editados.
 - **Frente e verso:** cada lado tem sua própria arte e seu próprio texto, fonte, tamanho, cor e posição.
 - **Editor de texto com formatação:** barra de ferramentas com negrito, itálico, sublinhado, tachado, título, subtítulo, lista, alinhamento, tabela e desfazer/refazer. As variáveis são escritas como `{coluna}` (ex.: `{nome}`) e podem ser inseridas com um clique.
 - **Pré-visualização em tempo real:** mostra o certificado de cada participante, com setas para navegar entre eles. O tamanho do texto é proporcional à largura da arte, então o certificado gerado sai igual à prévia, qualquer que seja a resolução da imagem.
@@ -99,8 +100,8 @@ Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada 
 ## 📝 Uso Básico
 
 1. Na aba **Upload**, envie a arte da frente (e, se quiser, a do verso) e o arquivo CSV dos participantes. Se precisar, use **Baixar modelo CSV**.
-2. Ainda em **Upload**, escolha o modo do PDF: *Somente Frente*, *Somente Verso* ou *Frente + Verso*.
-3. Na aba **Texto & Variáveis**, escreva o texto de cada lado usando as variáveis do CSV, como `{nome}`, `{horas}`, `{orientador}`, `{email_orientador}` e `{nome_trabalho}` (as três últimas aparecem quando estão no CSV). Ex.: `Certificamos que {nome} apresentou o trabalho {nome_trabalho}, sob orientação de {orientador}.`
+2. Ainda em **Upload**, você pode preencher ou corrigir orientador, e-mail do orientador e nome do trabalho para cada participante, mesmo que essas colunas não constem do CSV original. Em seguida, escolha o modo do PDF: *Somente Frente*, *Somente Verso* ou *Frente + Verso*.
+3. Na aba **Texto & Variáveis**, escreva o texto de cada lado usando as variáveis do CSV, como `{nome}`, `{horas}`, `{orientador}`, `{email_orientador}` e `{nome_trabalho}` (as três últimas aparecem quando estão no CSV ou após edição no formulário acadêmico). Ex.: `Certificamos que {nome} apresentou o trabalho {nome_trabalho}, sob orientação de {orientador}.`
 4. Na aba **Aparência**, ajuste tamanho, fonte, cor e posição do texto, conferindo na pré-visualização.
 5. Clique em **Gerar PDF** ou **Gerar ZIP (PNGs)** para baixar os certificados.
 6. Para enviar por e-mail, vá à aba **E-mails**, preencha o e-mail para respostas, o código de acesso, o assunto e a mensagem, escolha a coluna com os endereços e clique em **Enviar Certificados**.
