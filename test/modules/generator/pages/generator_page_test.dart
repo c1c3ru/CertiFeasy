@@ -74,7 +74,7 @@ void main() {
     await tester.pumpAndSettle();
 
     bloc.add(LoadFilesEvent(
-      csvContent: 'nome;evento;data;horas;email\\n'
+      csvContent: 'nome;evento;data;horas;email\n'
           'Ana;Mostra;2026;8;ana@exemplo.com',
     ));
     await tester.pumpAndSettle();
