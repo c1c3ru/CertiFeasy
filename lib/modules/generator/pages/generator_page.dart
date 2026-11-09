@@ -1128,7 +1128,6 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
   Widget _buildAppearanceContent(GeneratorLoaded state) {
     final currentFontSize = _isEditingBack ? state.backFontSize : state.fontSize;
     final currentFontFamily = _isEditingBack ? state.backFontFamily : state.fontFamily;
-    final currentFontColor = _isEditingBack ? state.backFontColorValue : state.fontColorValue;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
