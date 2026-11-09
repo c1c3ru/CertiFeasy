@@ -80,7 +80,7 @@ void main() {
     
     // Simulate CSV and image load
     bloc.add(LoadFilesEvent(
-      csvContent: 'nome;evento;data;horas;email\nTeste;Tech;2023;10;t@t.com',
+      csvContent: 'nome;evento;data;horas;email;orientador;email_orientador;nome_trabalho\nTeste;Tech;2023;10;t@t.com;Prof. Ana;ana@ifce.edu.br;Pesquisa em IA',
       imageBytes: dummyImageBytes,
     ));
     
@@ -96,6 +96,9 @@ void main() {
     // Verify chips in variables tab
     expect(find.text('{nome}'), findsOneWidget);
     expect(find.text('{horas}'), findsOneWidget);
+    expect(find.text('{orientador}'), findsOneWidget);
+    expect(find.text('{email_orientador}'), findsOneWidget);
+    expect(find.text('{nome_trabalho}'), findsOneWidget);
 
     bloc.close();
   });
