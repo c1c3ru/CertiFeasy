@@ -18,6 +18,7 @@ import '../../../core/utils/markup_editing.dart';
 import '../../../core/utils/rich_text_markup.dart';
 import '../widgets/rich_text_editor.dart';
 import '../widgets/email_recipient_column_selector.dart';
+import '../widgets/participant_academic_fields.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
 const _colorOptions = [
@@ -790,6 +791,25 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             ),
           ),
         ),
+
+        // Dados acadêmicos editáveis, inclusive para CSVs legados.
+        if (state.mappedData.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          ParticipantAcademicFields(
+            rowIndex: state.selectedCsvRowIndex,
+            participantCount: state.mappedData.length,
+            rowData: state.mappedData[state.selectedCsvRowIndex],
+            enabled: !state.isGenerating && !state.isSendingEmails,
+            onSelectRow: (index) => _bloc.add(SelectPreviewRowEvent(index)),
+            onChanged: (field, value) => _bloc.add(
+              UpdateAcademicFieldEvent(
+                rowIndex: state.selectedCsvRowIndex,
+                field: field,
+                value: value,
+              ),
+            ),
+          ),
+        ],
 
         // Chips de colunas detectadas
         if (state.csvHeaders.isNotEmpty) ...[
