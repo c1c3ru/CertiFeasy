@@ -77,6 +77,11 @@ class ParticipantTableParser {
       sanitized,
       fieldDelimiter: delimiter,
     );
+    return parseRows(rows);
+  }
+
+  /// Mesma validação para CSV/TSV e células de Excel, sem serializar CSV.
+  static ParticipantTable parseRows(List<List<dynamic>> rows) {
     if (rows.length < 2) {
       throw const FormatException('O arquivo precisa conter cabeçalho e participantes.');
     }

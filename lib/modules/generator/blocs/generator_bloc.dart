@@ -83,9 +83,11 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     List<String> newHeaders = current.csvHeaders;
     List<Map<String, dynamic>> newMappedData = current.mappedData;
 
-    if (event.csvContent != null) {
+    if (event.csvContent != null || event.tableRows != null) {
       try {
-        final parsed = ParticipantTableParser.parse(event.csvContent!);
+        final parsed = event.tableRows != null
+            ? ParticipantTableParser.parseRows(event.tableRows!)
+            : ParticipantTableParser.parse(event.csvContent!);
         newCsvData = parsed.csvData;
         newHeaders = parsed.headers;
         newMappedData = parsed.mappedData;
@@ -96,7 +98,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         return;
       } on Exception {
         emit(GeneratorError(
-          'Não foi possível ler os participantes. Confira o formato CSV/TSV.',
+          'Não foi possível ler os participantes. Confira o formato CSV/TSV/Excel.',
         ));
         emit(current);
         return;

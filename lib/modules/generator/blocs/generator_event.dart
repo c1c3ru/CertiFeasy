@@ -6,7 +6,8 @@ abstract class GeneratorEvent {}
 class LoadFilesEvent extends GeneratorEvent {
   final Uint8List? imageBytes;
   final String? csvContent;
-  LoadFilesEvent({this.imageBytes, this.csvContent});
+  final List<List<dynamic>>? tableRows;
+  LoadFilesEvent({this.imageBytes, this.csvContent, this.tableRows});
 }
 
 class LoadBackImageEvent extends GeneratorEvent {
