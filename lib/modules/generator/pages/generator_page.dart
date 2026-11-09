@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,6 +15,7 @@ import '../blocs/generator_state.dart';
 import '../../../core/utils/cert_generator.dart';
 import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/utils/csv_template.dart';
+import '../../../core/utils/participant_excel_reader.dart';
 import '../../../core/utils/markup_editing.dart';
 import '../../../core/utils/rich_text_markup.dart';
 import '../widgets/rich_text_editor.dart';
@@ -91,20 +93,57 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     }
   }
 
+  Future<void> _loadParticipantFile(
+    Uint8List bytes,
+    String fileName,
+  ) async {
+    final name = fileName.toLowerCase();
+    if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
+      try {
+        final rows = await ParticipantExcelReader.readRows(bytes);
+        if (!mounted) return;
+        _bloc.add(LoadFilesEvent(tableRows: rows));
+      } on FormatException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      } on Exception {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível importar o arquivo Excel.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    String csvString;
+    try {
+      csvString = utf8.decode(bytes);
+    } on FormatException {
+      csvString = latin1.decode(bytes);
+    }
+    if (!mounted) return;
+    _bloc.add(LoadFilesEvent(csvContent: csvString));
+  }
+
   Future<void> _pickCSV() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv', 'tsv', 'txt'],
+      allowedExtensions: ['csv', 'tsv', 'txt', 'xls', 'xlsx'],
       withData: true,
     );
     if (result != null && result.files.first.bytes != null) {
-      String csvString;
-      try {
-        csvString = utf8.decode(result.files.first.bytes!);
-      } catch (e) {
-        csvString = latin1.decode(result.files.first.bytes!);
-      }
-      _bloc.add(LoadFilesEvent(csvContent: csvString));
+      await _loadParticipantFile(
+        result.files.first.bytes!,
+        result.files.first.name,
+      );
     }
   }
 
@@ -757,7 +796,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
         _buildSectionLabel('Dados dos Participantes'),
         const SizedBox(height: 12),
         _buildDropBox(
-          title: 'Arquivo CSV',
+          title: 'Arquivo CSV / Excel',
           subtitle: state.mappedData.isNotEmpty
               ? '${state.mappedData.length} registro${state.mappedData.length > 1 ? 's' : ''} carregado${state.mappedData.length > 1 ? 's' : ''} ✓'
               : 'Arraste ou clique para selecionar',
@@ -768,21 +807,17 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             final file = details.files.first;
             if (file.name.toLowerCase().endsWith('.csv') ||
                 file.name.toLowerCase().endsWith('.tsv') ||
-                file.name.toLowerCase().endsWith('.txt')) {
+                file.name.toLowerCase().endsWith('.txt') ||
+                file.name.toLowerCase().endsWith('.xls') ||
+                file.name.toLowerCase().endsWith('.xlsx')) {
               final bytes = await file.readAsBytes();
-              String csvString;
-              try {
-                csvString = utf8.decode(bytes);
-              } catch (e) {
-                csvString = latin1.decode(bytes);
-              }
-              _bloc.add(LoadFilesEvent(csvContent: csvString));
+              await _loadParticipantFile(bytes, file.name);
             }
           },
         ),
         const SizedBox(height: 8),
         const Text(
-          'Importe CSV (.csv) ou dados tabulados de planilha (.tsv/.txt). '
+          'Importe CSV (.csv), TSV/TXT tabulado ou Excel (.xls/.xlsx). '
           'Em apresentações com orientador e título, a coluna horas pode faltar.',
           style: TextStyle(color: Colors.white60, fontSize: 11.5),
         ),
