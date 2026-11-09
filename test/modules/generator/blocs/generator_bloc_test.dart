@@ -233,6 +233,58 @@ void main() {
     );
 
     blocTest<GeneratorBloc, GeneratorState>(
+      'importa mostra científica TSV sem carga horária, preservando destinatários',
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(
+        csvContent: 'Nome\tOrientador(a)\tTítulo do trabalho\tEvento\tData\tE-mail\tE-mail do orientador\n'
+            'SILVA, Ana\tProfa. Marta\tEstudo de Química\tII Mostra Científica\t9-out.\t'
+            'ana@example.com\tProfa. Marta <marta@ifce.example>',
+      )),
+      expect: () => [
+        isA<GeneratorSuccess>(),
+        isA<GeneratorLoaded>()
+            .having((s) => s.mappedData.length, 'participantes', 1)
+            .having((s) => s.mappedData.single['nome'], 'nome', 'SILVA, Ana')
+            .having((s) => s.mappedData.single['nome_trabalho'], 'título', 'Estudo de Química')
+            .having((s) => s.mappedData.single['orientador'], 'orientador', 'Profa. Marta')
+            .having((s) => s.mappedData.single['email'], 'destinatário', 'ana@example.com')
+            .having((s) => s.mappedData.single['email_orientador'], 'email professor', 'marta@ifce.example')
+            .having((s) => s.mappedData.single['horas'], 'horas não informadas', '')
+            .having((s) => s.emailColumn, 'coluna de envio preservada', 'email'),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'não aceita CSV tradicional sem horas',
+      seed: () => GeneratorLoaded(
+        csvData: const [
+          ['nome', 'evento', 'data', 'horas', 'email'],
+          ['Ana', 'Curso', '11/09', '8', 'ana@example.com'],
+        ],
+        csvHeaders: const ['nome', 'evento', 'data', 'horas', 'email'],
+        mappedData: const [
+          {'nome': 'Ana', 'evento': 'Curso', 'data': '11/09',
+           'horas': '8', 'email': 'ana@example.com'},
+        ],
+        templateImageBytes: dummyImageBytes,
+      ),
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(
+        csvContent: 'nome;evento;data;email\nBia;Curso;10/10;bia@example.com',
+      )),
+      expect: () => [
+        isA<GeneratorError>().having(
+          (e) => e.message,
+          'coluna obrigatória',
+          contains('horas'),
+        ),
+        isA<GeneratorLoaded>()
+            .having((s) => s.mappedData.single['nome'], 'não perdeu os dados', 'Ana')
+            .having((s) => s.templateImageBytes, 'não perdeu arte', isNotNull),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
       'keeps previously loaded data when an invalid CSV is uploaded',
       seed: () => GeneratorLoaded(
         csvData: const [['nome'], ['Ana']],
