@@ -48,7 +48,7 @@ void main() {
       );
 
       expect(result.headers, ['nome', 'evento', 'data', 'horas', 'email']);
-      expect(result.mappedData.single['horas'], 12);
+      expect(result.mappedData.single['horas'].toString(), '12');
     });
 
     test('rejeita CSV tradicional quando faltam horas', () {
@@ -79,7 +79,7 @@ void main() {
         'Nome;Orientador(a);Título do trabalho;Evento;Data;E-mail;Horas\n'
         'Ana;Prof. Carlos;Pesquisa;Mostra;9-out.;ana@example.com;3',
       );
-      expect(result.mappedData.single['horas'], 3);
+      expect(result.mappedData.single['horas'].toString(), '3');
       expect(result.headers.where((h) => h == 'horas'), hasLength(1));
     });
 
