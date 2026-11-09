@@ -42,7 +42,7 @@ Use `\` antes de um desses caracteres para escrevê-lo literalmente. Os valores 
 
 ## 🛠 Arquitetura e Tecnologias
 
-- **Framework:** Flutter 3.47.6 (versão fixada no deploy), Dart 3.9+
+- **Framework:** Flutter 3.47.6 (versão fixada no deploy), Dart 3.12+
 - **Gerência de estado:** [flutter_bloc](https://pub.dev/packages/flutter_bloc)
 - **Injeção de dependências e rotas:** [flutter_modular](https://pub.dev/packages/flutter_modular)
 - **PDF:** [pdf](https://pub.dev/packages/pdf) e [printing](https://pub.dev/packages/printing)
