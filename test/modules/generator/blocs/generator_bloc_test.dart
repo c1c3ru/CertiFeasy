@@ -56,6 +56,58 @@ void main() {
     );
 
     blocTest<GeneratorBloc, GeneratorState>(
+      'importa linhas Excel usando a mesma validação de CSV/TSV',
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(tableRows: [
+        ['Nome', 'Orientador(a)', 'Título do trabalho',
+         'Evento', 'Data', 'E-mail', 'E-mail do orientador'],
+        ['OLIVEIRA, Ana', 'Profa. Marta', 'Educação em Química',
+         'Mostra Científica', '9-out.', 'ana@example.com',
+         'marta@ifce.example'],
+      ])),
+      expect: () => [
+        isA<GeneratorSuccess>(),
+        isA<GeneratorLoaded>()
+            .having((s) => s.mappedData.length, 'linhas', 1)
+            .having((s) => s.mappedData.single['nome'], 'nome', 'OLIVEIRA, Ana')
+            .having((s) => s.mappedData.single['nome_trabalho'],
+                'título', 'Educação em Química')
+            .having((s) => s.mappedData.single['horas'],
+                'horas não informadas', '')
+            .having((s) => s.emailColumn,
+                'destinatário continua email', 'email'),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
+      'rejeita linhas Excel tradicionais sem horas e preserva estado',
+      seed: () => GeneratorLoaded(
+        csvData: const [
+          ['nome', 'evento', 'data', 'horas', 'email'],
+          ['Ana', 'Curso', '10/10/2026', '4', 'ana@example.com'],
+        ],
+        csvHeaders: const ['nome', 'evento', 'data', 'horas', 'email'],
+        mappedData: const [
+          {'nome': 'Ana', 'evento': 'Curso', 'data': '10/10/2026',
+           'horas': '4', 'email': 'ana@example.com'},
+        ],
+        templateImageBytes: dummyImageBytes,
+      ),
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(LoadFilesEvent(tableRows: [
+        ['nome', 'evento', 'data', 'email'],
+        ['Bia', 'Curso', '10/10/2026', 'bia@example.com'],
+      ])),
+      expect: () => [
+        isA<GeneratorError>().having(
+          (error) => error.message, 'erro', contains('horas')),
+        isA<GeneratorLoaded>()
+            .having((s) => s.mappedData.single['nome'],
+                'mantém estado anterior', 'Ana'),
+      ],
+    );
+
+    blocTest<GeneratorBloc, GeneratorState>(
       'emits GeneratorLoaded when LoadBackImageEvent is added',
       seed: () => GeneratorLoaded(
         csvData: const [['test1', 'test2'], ['a', 'b']],
