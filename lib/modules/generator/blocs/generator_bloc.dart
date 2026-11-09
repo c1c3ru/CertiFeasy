@@ -6,11 +6,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:csv/csv.dart';
-import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/utils/cert_generator.dart';
+import '../../../core/utils/certificate_file_names.dart';
+import '../services/certificate_zip_job.dart';
 import '../../../core/utils/cert_pdf_generator.dart';
 import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/services/preferences_service.dart';
@@ -260,6 +261,15 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     final current = _loaded;
     if (current == null) return;
 
+    if (!current.hasValidEmailColumn) {
+      emit(GeneratorError(
+        'A coluna de destinatários "${current.emailColumn}" não existe no CSV atual. '
+        'Escolha uma coluna válida na aba E-mails.',
+      ));
+      emit(current);
+      return;
+    }
+
     if (!current.canSendEmails) {
       emit(GeneratorError('Faltam configurações de e-mail ou os requisitos do certificado (Imagem/CSV).'));
       emit(current);
@@ -290,6 +300,10 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null
               ? await decodeImageFromList(current.backTemplateImageBytes!)
               : null;
+      final fileBaseNames = CertificateFileNames.uniqueBaseNames(
+        current.mappedData,
+        current.csvHeaders,
+      );
       for (int i = 0; i < current.mappedData.length; i++) {
         final row = current.mappedData[i];
         final recipientEmail = row[current.emailColumn]?.toString().trim();
@@ -314,11 +328,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
           continue;
         }
 
-        // Define o nome do arquivo pdf
-        String certName = 'certificado_$i.pdf';
-        if (current.csvHeaders.isNotEmpty && row.containsKey(current.csvHeaders.first)) {
-          certName = '${row[current.csvHeaders.first]}_certificado.pdf'.replaceAll(RegExp(r'[^a-zA-ZÀ-ÿ0-9_\-\.]'), '_');
-        }
+        // Evita nomes duplicados entre participantes homônimos.
+        final certName = '${fileBaseNames[i]}_certificado.pdf';
 
         // Substituir variáveis no corpo do email se houver
         String parsedBody = current.emailBody;
@@ -457,8 +468,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
     final zipBytes = await _runJob(
       args,
-      job: _generateZipJob,
-      worker: _generateZipWorker,
+      job: generateZipJob,
+      worker: generateZipWorker,
       onError: (msg) => emit(GeneratorError('Erro ao gerar ZIP: $msg')),
     );
 
@@ -608,102 +619,5 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     } catch (e) {
       emit(GeneratorError('Erro ao compartilhar ou salvar: $e'));
     }
-  }
-}
-
-// ─── Geração do ZIP ──────────────────────────────────────────────────────────
-void _generateZipWorker(Map<String, dynamic> args) async {
-  final SendPort sendPort = args['sendPort'];
-  await _generateZipJob(args, sendPort.send);
-}
-
-/// Gera o ZIP e reporta pelo [send]: progresso (double), o ZIP (Uint8List)
-/// ou 'ERROR:...' (String).
-Future<void> _generateZipJob(Map<String, dynamic> args, void Function(Object message) send) async {
-  try {
-    final List<Map<String, dynamic>> data = args['data'];
-    final List<String> headers = List<String>.from(args['headers'] ?? []);
-    final Uint8List imgBytes = args['imgBytes'];
-    final String textTemplate = args['textTemplate'];
-    final double fontSize = args['fontSize'];
-    final String fontFamily = args['fontFamily'];
-    final int fontColor = args['fontColor'];
-    final double textPositionX = args['textPositionX'] ?? 0.5;
-    final double textPositionY = args['textPositionY'] ?? 0.5;
-
-    final Uint8List? backImgBytes = args['backImgBytes'];
-    final String backTextTemplate = args['backTextTemplate'] ?? '';
-    final double backFontSize = args['backFontSize'] ?? 32.0;
-    final String backFontFamily = args['backFontFamily'] ?? 'Roboto';
-    final int backFontColor = args['backFontColor'] ?? 0xFF000000;
-    final double backTextPositionX = args['backTextPositionX'] ?? 0.5;
-    final double backTextPositionY = args['backTextPositionY'] ?? 0.5;
-    final String pdfModeStr = args['pdfMode'] ?? 'frontOnly';
-    
-    final bool generateFront = pdfModeStr != 'backOnly';
-    final bool generateBack = pdfModeStr != 'frontOnly' && backImgBytes != null;
-
-    ui.Image? templateImage;
-    if (generateFront) {
-      final codec = await ui.instantiateImageCodec(imgBytes);
-      final frameInfo = await codec.getNextFrame();
-      templateImage = frameInfo.image;
-    }
-
-    ui.Image? backTemplateImage;
-    if (generateBack) {
-      final codec = await ui.instantiateImageCodec(backImgBytes!);
-      final frameInfo = await codec.getNextFrame();
-      backTemplateImage = frameInfo.image;
-    }
-
-    final archive = Archive();
-
-    for (int i = 0; i < data.length; i++) {
-      final row = data[i];
-      
-      String baseName = 'certificado_$i';
-      if (headers.isNotEmpty && row.containsKey(headers.first)) {
-        baseName = row[headers.first]?.toString() ?? baseName;
-      }
-      final cleanName = baseName.replaceAll(RegExp(r'[^a-zA-ZÀ-ÿ0-9_\-]'), '_');
-
-      if (generateFront && templateImage != null) {
-        final certBytes = await CertGenerator.generateCertificateImage(
-          templateImage,
-          row,
-          textTemplate,
-          fontSize,
-          fontFamily,
-          Color(fontColor),
-          textPositionX: textPositionX,
-          textPositionY: textPositionY,
-        );
-        final fileName = generateBack ? '${cleanName}_frente.png' : '$cleanName.png';
-        archive.addFile(ArchiveFile(fileName, certBytes.length, certBytes));
-      }
-
-      if (generateBack && backTemplateImage != null) {
-        final backBytes = await CertGenerator.generateCertificateImage(
-          backTemplateImage,
-          row,
-          backTextTemplate,
-          backFontSize,
-          backFontFamily,
-          Color(backFontColor),
-          textPositionX: backTextPositionX,
-          textPositionY: backTextPositionY,
-        );
-        final fileName = generateFront ? '${cleanName}_verso.png' : '$cleanName.png';
-        archive.addFile(ArchiveFile(fileName, backBytes.length, backBytes));
-      }
-
-      send((i + 1) / data.length);
-    }
-
-    final zipData = ZipEncoder().encode(archive);
-    send(Uint8List.fromList(zipData));
-  } catch (e) {
-    send('ERROR:$e');
   }
 }
