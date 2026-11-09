@@ -165,8 +165,16 @@ class GeneratorLoaded extends GeneratorState {
   /// Verdadeiro quando os requisitos para gerar ZIP estão satisfeitos
   bool get canGenerateZip => mappedData.isNotEmpty && templateImageBytes != null;
   
-  /// Verdadeiro quando os requisitos para envio de e-mails estão satisfeitos
-  bool get canSendEmails => canGeneratePdf && senderEmail.isNotEmpty && emailAccessCode.isNotEmpty && emailColumn.isNotEmpty;
+  /// A coluna configurada precisa existir no CSV atual, sem fallback implícito.
+  bool get hasValidEmailColumn => csvHeaders.contains(emailColumn);
+
+  /// Verdadeiro quando os requisitos para envio de e-mails estão satisfeitos.
+  bool get canSendEmails =>
+      canGeneratePdf &&
+      senderEmail.isNotEmpty &&
+      emailAccessCode.isNotEmpty &&
+      hasValidEmailColumn &&
+      !isSendingEmails;
 }
 
 class GeneratorError extends GeneratorState {
