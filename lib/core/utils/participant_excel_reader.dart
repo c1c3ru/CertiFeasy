@@ -66,7 +66,7 @@ class ParticipantExcelReader {
 
   static String _cellText(CellValue? value) {
     if (value == null) return '';
-    if (value is TextCellValue) return value.text;
+    // Cada CellValue expõe sua representação textual via toString().
     return value.toString();
   }
 }
