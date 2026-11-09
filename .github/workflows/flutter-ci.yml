@@ -29,6 +29,11 @@ jobs:
           cache: true
       - name: Dependencies
         run: flutter pub get
+      - name: Capture resolved public dependency lockfile
+        run: |
+          echo '__LOCKFILE_BEGIN__'
+          cat pubspec.lock
+          echo '__LOCKFILE_END__'
       - name: Static analysis
         run: flutter analyze
       - name: Unit and widget tests
