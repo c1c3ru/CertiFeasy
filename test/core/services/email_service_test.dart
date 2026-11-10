@@ -33,6 +33,7 @@ void main() {
     expect((await send(respond(400, 'Destinatário inválido.'))).kind, EmailFailureKind.invalidAddress);
     expect((await send(respond(400, 'Assunto inválido.'))).kind, EmailFailureKind.rejectedContent);
     expect((await send(respond(401, 'Código de acesso inválido.'))).unauthorized, isTrue);
+    expect((await send(respond(403, 'Use uma conta @ifce.edu.br.'))).unauthorized, isTrue);
     expect((await send(respond(503, 'não configurado'))).unauthorized, isTrue);
     expect((await send(respond(502, 'Falha ao enviar o e-mail.'))).kind, EmailFailureKind.technical);
     expect((await send(respond(502, 'Falha ao enviar o e-mail.'))).error, 'Falha ao enviar o e-mail.');

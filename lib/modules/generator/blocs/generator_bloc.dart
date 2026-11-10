@@ -16,6 +16,7 @@ import '../../../core/utils/cert_pdf_generator.dart';
 import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/services/preferences_service.dart';
 import '../../../core/services/email_service.dart';
+import '../../../core/utils/email_address_check.dart';
 import '../../../core/services/google_auth/google_session.dart';
 import 'generator_event.dart';
 import 'generator_state.dart';
