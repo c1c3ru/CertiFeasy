@@ -366,43 +366,77 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       emailsTotalCount: current.mappedData.length
     ));
 
-    try {
-      int successCount = 0;
-      int failureCount = 0;
-      String? lastError;
-      final failedRecipients = <String>[];
+    int successCount = 0;
+    final failures = <EmailFailure>[];
+    var notAttempted = 0;
+    final total = current.mappedData.length;
+    final hasNameColumn = current.csvHeaders.contains('nome');
+    String nameOf(Map<String, dynamic> row) =>
+        hasNameColumn ? (row['nome']?.toString().trim() ?? '') : '';
+
+    // Fontes e artes só são preparadas quando aparece o primeiro endereço
+    // válido (uma vez só para o lote inteiro).
+    ui.Image? frontTemplate;
+    ui.Image? backTemplate;
+    Future<ui.Image> prepareTemplates() async {
+      if (frontTemplate != null) return frontTemplate!;
       await loadCertificateFonts({current.fontFamily, current.backFontFamily});
-      // As artes são decodificadas uma vez só para o lote inteiro.
-      final frontTemplate = await decodeImageFromList(current.templateImageBytes!);
-      final backTemplate =
-          current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null
-              ? await decodeImageFromList(current.backTemplateImageBytes!)
-              : null;
+      backTemplate = current.pdfMode != PdfMode.frontOnly && current.backTemplateImageBytes != null
+          ? await decodeImageFromList(current.backTemplateImageBytes!)
+          : null;
+      return frontTemplate = await decodeImageFromList(current.templateImageBytes!);
+    }
+
+    try {
       final fileBaseNames = CertificateFileNames.uniqueBaseNames(
         current.mappedData,
         current.csvHeaders,
       );
-      for (int i = 0; i < current.mappedData.length; i++) {
+      for (int i = 0; i < total; i++) {
         final row = current.mappedData[i];
-        final recipientEmail = row[current.emailColumn]?.toString().trim();
-        
-        if (recipientEmail == null || !_emailRegex.hasMatch(recipientEmail)) {
-          // Pula caso não haja email válido nesta linha
-          add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
+        final recipientEmail = row[current.emailColumn]?.toString().trim() ?? '';
+
+        // Endereço vazio ou digitado errado: nem tenta enviar, e avisa no final.
+        final issue = checkEmailAddress(recipientEmail);
+        if (issue != null) {
+          failures.add(EmailFailure(
+            name: nameOf(row),
+            email: recipientEmail,
+            kind: EmailFailureKind.invalidAddress,
+            detail: issue.reason,
+            suggestion: issue.suggestion,
+          ));
+          add(UpdateEmailProgressEvent(successCount, total));
           continue;
         }
 
         // 1. Gera o PDF do certificado desta linha, já comprimido para o e-mail
-        final pdfBytes = await _buildEmailPdf(current, row, frontTemplate, backTemplate);
+        final front = await prepareTemplates();
+        final Uint8List pdfBytes;
+        try {
+          pdfBytes = await _buildEmailPdf(current, row, front, backTemplate);
+        } catch (e) {
+          failures.add(EmailFailure(
+            name: nameOf(row),
+            email: recipientEmail,
+            kind: EmailFailureKind.technical,
+            detail: 'não foi possível gerar o certificado ($e)',
+          ));
+          add(UpdateEmailProgressEvent(successCount, total));
+          continue;
+        }
 
         // O servidor recusa anexos acima de 3 MB: avisa antes de tentar o envio.
         if (pdfBytes.length > kMaxEmailAttachmentBytes) {
-          failureCount++;
-          failedRecipients.add(recipientEmail);
-          lastError = 'mesmo comprimido, o certificado ficou com '
-              '${(pdfBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB (máximo 3 MB). '
-              'Use uma imagem de template com menos pixels.';
-          add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
+          failures.add(EmailFailure(
+            name: nameOf(row),
+            email: recipientEmail,
+            kind: EmailFailureKind.rejectedContent,
+            detail: 'mesmo comprimido, o certificado ficou com '
+                '${(pdfBytes.length / (1024 * 1024)).toStringAsFixed(1)} MB (máximo 3 MB). '
+                'Use uma imagem de template com menos pixels.',
+          ));
+          add(UpdateEmailProgressEvent(successCount, total));
           continue;
         }
 
@@ -435,39 +469,53 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         if (result.success) {
           successCount++;
         } else {
-          failureCount++;
-          failedRecipients.add(recipientEmail);
-          lastError = result.error;
-          // Código inválido ou servidor sem configuração: os próximos envios também falhariam.
-          if (result.unauthorized) break;
+          failures.add(EmailFailure(
+            name: nameOf(row),
+            email: recipientEmail,
+            kind: result.kind ?? EmailFailureKind.technical,
+            detail: result.error ?? 'falha desconhecida',
+          ));
+          // Login/código recusado ou servidor sem configuração: os próximos
+          // envios também falhariam.
+          if (result.unauthorized) {
+            notAttempted = total - i - 1;
+            break;
+          }
         }
-        
+
         // Atualiza a barra de progresso após enviar
-        add(UpdateEmailProgressEvent(successCount, current.mappedData.length));
-        
+        add(UpdateEmailProgressEvent(successCount, total));
+
         // Evitar rate limit (Gmail tem limite de 500 envios/dia)
         await Future.delayed(const Duration(milliseconds: 550));
       }
-      frontTemplate.dispose();
-      backTemplate?.dispose();
-
-      final updatedState = _loaded ?? current;
-      emit(updatedState.copyWith(isSendingEmails: false));
-      if (failureCount == 0) {
-        emit(GeneratorSuccess('E-mails processados: $successCount envios com sucesso.'));
-      } else {
-        final shown = failedRecipients.take(5).join(', ');
-        final more = failedRecipients.length > 5 ? ' e mais ${failedRecipients.length - 5}' : '';
-        emit(GeneratorError(
-          '$successCount e-mail(s) enviados, $failureCount com falha ($shown$more). Último erro: $lastError',
-        ));
-      }
-      emit(updatedState.copyWith(isSendingEmails: false));
     } catch (e) {
-      final updatedState = _loaded ?? current;
-      emit(GeneratorError('Erro durante envio de e-mails: $e'));
-      emit(updatedState.copyWith(isSendingEmails: false));
+      // Falha inesperada no meio do lote: o que já foi enviado continua valendo.
+      final done = successCount + failures.length;
+      failures.add(EmailFailure(
+        name: '',
+        email: '',
+        kind: EmailFailureKind.technical,
+        detail: 'o envio parou por um erro inesperado ($e)',
+      ));
+      notAttempted = total - done;
+    } finally {
+      frontTemplate?.dispose();
+      backTemplate?.dispose();
     }
+
+    final updatedState = (_loaded ?? current).copyWith(isSendingEmails: false);
+    emit(updatedState);
+    if (failures.isEmpty) {
+      emit(GeneratorSuccess('Pronto: $successCount e-mail(s) enviados com sucesso.'));
+    } else {
+      emit(GeneratorEmailReport(
+        sentCount: successCount,
+        failures: failures,
+        notAttemptedCount: notAttempted < 0 ? 0 : notAttempted,
+      ));
+    }
+    emit(updatedState);
   }
 
   /// Gera o PDF de um participante para anexar no e-mail.
@@ -594,15 +642,26 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       'pdfMode': current.pdfMode.name,
     };
 
+    String? fileName;
     final pdfBytes = await _runJob(
       args,
       job: generatePdfJob,
       worker: generatePdfWorker,
       onError: (msg) => emit(GeneratorError('Erro ao gerar PDF: $msg')),
+      onFileName: (name) => fileName = name,
     );
 
     if (pdfBytes != null) {
-      await _shareFile(pdfBytes, _timestampedName('certificados', 'pdf'), 'Certificados em PDF', emit, current);
+      // Um PDF por pessoa: com um participante sai o próprio PDF
+      // (Nome_da_Pessoa.pdf); com vários, um ZIP com um PDF para cada um.
+      final isZip = fileName == null || fileName!.endsWith('.zip');
+      await _shareFile(
+        pdfBytes,
+        isZip ? _timestampedName('certificados_pdf', 'zip') : fileName!,
+        isZip ? 'Certificados em PDF (um arquivo por pessoa)' : 'Certificado em PDF',
+        emit,
+        current,
+      );
     }
 
     add(UpdateProgressEvent(1.0));
@@ -619,6 +678,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     required Future<void> Function(Map<String, dynamic> args, void Function(Object message) send) job,
     required void Function(Map<String, dynamic> args) worker,
     required void Function(String message) onError,
+    void Function(String fileName)? onFileName,
   }) async {
     // Deixa as fontes do texto carregadas antes de começar a geração.
     await loadCertificateFonts({
@@ -634,6 +694,8 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         result = msg;
       } else if (msg is String && msg.startsWith('ERROR:')) {
         onError(msg.substring('ERROR:'.length));
+      } else if (msg is String && msg.startsWith('FILENAME:')) {
+        onFileName?.call(msg.substring('FILENAME:'.length));
       }
     }
 

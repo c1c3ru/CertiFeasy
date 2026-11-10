@@ -7,6 +7,7 @@ import 'package:certifeasy/modules/generator/blocs/generator_event.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_state.dart';
 import 'package:certifeasy/core/utils/csv_template.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:certifeasy/core/services/email_service.dart';
 
 String _fakeIdToken(DateTime expiresAt) {
   String part(Map<String, dynamic> json) =>

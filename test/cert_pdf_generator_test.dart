@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:archive/archive.dart';
 import 'package:certifeasy/core/utils/cert_pdf_generator.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_state.dart';
 import 'package:flutter/material.dart';
@@ -41,17 +42,12 @@ void main() {
     expect(_pageWidths(pdf).map(double.parse).toList(), [1500, 1500]);
   });
 
-  test('frente e verso de cada participante ficam em páginas seguidas', () async {
-    final front = await _png(200, 100); // 150 pt de largura
-    final back = await _png(120, 100); // 90 pt de largura
-    final pdf = await CertPdfGenerator.generateBatchPdf(
-      data: [
-        {'nome': 'Ana'},
-        {'nome': 'Bruno'},
-      ],
-      headers: const ['nome'],
-      frontImgBytes: front,
-      backImgBytes: back,
+  Future<IndividualPdfsResult> individual(List<Map<String, dynamic>> data, {List<String> headers = const ['nome']}) async {
+    return CertPdfGenerator.generateIndividualPdfs(
+      data: data,
+      headers: headers,
+      frontImgBytes: await _png(200, 100), // 150 pt de largura
+      backImgBytes: await _png(120, 100), // 90 pt de largura
       textTemplate: 'Frente {nome}',
       fontSize: 12,
       fontFamily: 'Roboto',
@@ -62,8 +58,32 @@ void main() {
       mode: PdfMode.frontAndBack,
       onProgress: (_) {},
     );
-    final widths = _pageWidths(pdf).map(double.parse).toList();
-    expect(widths, [150, 90, 150, 90]);
+  }
+
+  test('gera um PDF por pessoa, com o nome dela, dentro de um ZIP', () async {
+    final result = await individual(
+      [
+        {'email': 'ana@x.com', 'nome': 'Ana Silva'},
+        {'email': 'bruno@x.com', 'nome': 'Bruno'},
+      ],
+      headers: const ['email', 'nome'],
+    );
+    expect(result.isZip, isTrue);
+    final zip = ZipDecoder().decodeBytes(result.bytes);
+    expect(zip.files.map((f) => f.name).toList(), ['Ana_Silva.pdf', 'Bruno.pdf']);
+    for (final file in zip.files) {
+      // Frente e verso da pessoa no mesmo arquivo.
+      expect(_pageWidths(file.content).map(double.parse).toList(), [150, 90]);
+    }
+  });
+
+  test('com uma pessoa só, devolve o PDF dela direto', () async {
+    final result = await individual([
+      {'nome': 'Carla Souza'},
+    ]);
+    expect(result.isZip, isFalse);
+    expect(result.fileName, 'Carla_Souza.pdf');
+    expect(String.fromCharCodes(result.bytes.take(5)), '%PDF-');
   });
 }
 

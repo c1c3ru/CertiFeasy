@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../../core/services/email_service.dart' show EmailFailureKind;
 
 // ─── Enum de modo de geração PDF ───────────────────────────────────────────
 enum PdfMode {
@@ -205,4 +206,44 @@ class GeneratorError extends GeneratorState {
 class GeneratorSuccess extends GeneratorState {
   final String message;
   GeneratorSuccess(this.message);
+}
+
+/// Um destinatário que não recebeu o certificado e o motivo.
+class EmailFailure {
+  /// Nome da pessoa na planilha (vazio se não houver coluna "nome").
+  final String name;
+  final String email;
+  final EmailFailureKind kind;
+
+  /// Explicação curta do problema.
+  final String detail;
+
+  /// Endereço provável, quando o problema parece erro de digitação.
+  final String? suggestion;
+
+  const EmailFailure({
+    required this.name,
+    required this.email,
+    required this.kind,
+    required this.detail,
+    this.suggestion,
+  });
+}
+
+/// Resumo de um envio em lote com alguma falha, separado por tipo de problema.
+class GeneratorEmailReport extends GeneratorState {
+  final int sentCount;
+  final List<EmailFailure> failures;
+
+  /// Participantes que nem chegaram a ser tentados porque o envio parou
+  /// (login/código recusado ou servidor sem configuração).
+  final int notAttemptedCount;
+
+  GeneratorEmailReport({
+    required this.sentCount,
+    required this.failures,
+    this.notAttemptedCount = 0,
+  });
+
+  List<EmailFailure> ofKind(EmailFailureKind kind) => failures.where((f) => f.kind == kind).toList();
 }

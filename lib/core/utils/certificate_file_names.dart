@@ -11,11 +11,12 @@ class CertificateFileNames {
   ) {
     final used = <String>{};
     final names = <String>[];
+    // O arquivo leva o nome da pessoa: usa a coluna "nome" quando ela existe,
+    // mesmo que não seja a primeira da planilha.
+    final nameColumn = headers.contains('nome') ? 'nome' : (headers.isEmpty ? null : headers.first);
 
     for (var i = 0; i < rows.length; i++) {
-      final rawName = headers.isEmpty
-          ? ''
-          : rows[i][headers.first]?.toString() ?? '';
+      final rawName = nameColumn == null ? '' : rows[i][nameColumn]?.toString() ?? '';
       final safeName = _sanitize(rawName);
       final base = safeName.isEmpty ? 'certificado_${i + 1}' : safeName;
       var candidate = base;
