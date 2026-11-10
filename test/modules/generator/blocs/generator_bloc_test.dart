@@ -8,6 +8,13 @@ import 'package:certifeasy/modules/generator/blocs/generator_state.dart';
 import 'package:certifeasy/core/utils/csv_template.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+String _fakeIdToken(DateTime expiresAt) {
+  String part(Map<String, dynamic> json) =>
+      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
+  return '${part({'alg': 'RS256'})}.'
+      '${part({'email': 'cicero@ifce.edu.br', 'exp': expiresAt.millisecondsSinceEpoch ~/ 1000})}.assinatura';
+}
+
 void main() {
   group('GeneratorBloc', () {
     late GeneratorBloc generatorBloc;
@@ -388,6 +395,56 @@ void main() {
       expect(s.textTemplate, 'Texto do usuário');
       expect(s.mappedData.single['nome'], 'Ana');
       expect(identical(s.templateImageBytes, newImage), isTrue);
+    });
+      group('login com Google', () {
+      GeneratorLoaded ready({bool google = true, String idToken = '', String code = ''}) => GeneratorLoaded(
+            csvData: const [['nome', 'email'], ['Ana', 'ana@exemplo.com']],
+            csvHeaders: const ['nome', 'email'],
+            mappedData: const [{'nome': 'Ana', 'email': 'ana@exemplo.com'}],
+            templateImageBytes: dummyImageBytes,
+            senderEmail: 'contato@exemplo.com',
+            googleSignInAvailable: google,
+            googleEmail: idToken.isEmpty ? '' : 'cicero@ifce.edu.br',
+            googleIdToken: idToken,
+            emailAccessCode: code,
+          );
+
+      test('com o Google disponível, só a conta do Google libera o envio', () {
+        expect(ready(code: 'segredo').canSendEmails, isFalse);
+        final token = _fakeIdToken(DateTime.now().add(const Duration(hours: 1)));
+        expect(ready(idToken: token).canSendEmails, isTrue);
+        expect(ready(idToken: token).emailCredential, token);
+      });
+
+      test('sem o Google configurado, continua valendo o código de acesso', () {
+        expect(ready(google: false, code: 'segredo').canSendEmails, isTrue);
+        expect(ready(google: false, code: 'segredo').emailCredential, 'segredo');
+      });
+
+      blocTest<GeneratorBloc, GeneratorState>(
+        'guarda o login recebido antes do primeiro estado carregado',
+        build: () => generatorBloc,
+        act: (bloc) => bloc
+          ..add(UpdateGoogleSessionEvent(available: true, email: 'cicero@ifce.edu.br', idToken: 'a.b.c'))
+          ..add(LoadFilesEvent()),
+        expect: () => [
+          isA<GeneratorLoaded>()
+              .having((s) => s.googleSignInAvailable, 'disponível', isTrue)
+              .having((s) => s.googleEmail, 'e-mail', 'cicero@ifce.edu.br')
+              .having((s) => s.googleIdToken, 'token', 'a.b.c'),
+        ],
+      );
+
+      blocTest<GeneratorBloc, GeneratorState>(
+        'não começa o lote com o login do Google quase expirado',
+        seed: () => ready(idToken: _fakeIdToken(DateTime.now().add(const Duration(minutes: 3)))),
+        build: () => generatorBloc,
+        act: (bloc) => bloc.add(SendEmailsBatchEvent()),
+        expect: () => [
+          isA<GeneratorError>().having((s) => s.message, 'mensagem', contains('entre de novo com o Google')),
+          isA<GeneratorLoaded>().having((s) => s.isSendingEmails, 'não envia', false),
+        ],
+      );
     });
   });
 }

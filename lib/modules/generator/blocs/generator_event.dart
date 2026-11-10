@@ -101,6 +101,16 @@ class UpdateEmailConfigEvent extends GeneratorEvent {
 
 class LoadEmailConfigEvent extends GeneratorEvent {}
 
+/// Resultado do login com Google: [available] diz se o servidor oferece o
+/// login; [email]/[idToken] ficam vazios quando ninguém está conectado.
+class UpdateGoogleSessionEvent extends GeneratorEvent {
+  final bool available;
+  final String email;
+  final String idToken;
+
+  UpdateGoogleSessionEvent({required this.available, this.email = '', this.idToken = ''});
+}
+
 class SendEmailsBatchEvent extends GeneratorEvent {}
 
 class UpdateEmailProgressEvent extends GeneratorEvent {
