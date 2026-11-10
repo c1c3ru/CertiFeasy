@@ -7,6 +7,7 @@ import 'package:certifeasy/modules/generator/blocs/generator_event.dart';
 import 'package:certifeasy/modules/generator/blocs/generator_state.dart';
 import 'package:certifeasy/core/utils/csv_template.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:certifeasy/core/services/email_service.dart';
 
 void main() {
   group('GeneratorBloc', () {
@@ -389,5 +390,34 @@ void main() {
       expect(s.mappedData.single['nome'], 'Ana');
       expect(identical(s.templateImageBytes, newImage), isTrue);
     });
+      blocTest<GeneratorBloc, GeneratorState>(
+      'separa no relatório o e-mail digitado errado e o vazio, sem tentar enviar',
+      seed: () => GeneratorLoaded(
+        csvData: const [['nome', 'email'], ['Ana', 'ana@gmial.com'], ['Bia', '']],
+        csvHeaders: const ['nome', 'email'],
+        mappedData: const [
+          {'nome': 'Ana', 'email': 'ana@gmial.com'},
+          {'nome': 'Bia', 'email': ''},
+        ],
+        templateImageBytes: dummyImageBytes,
+        senderEmail: 'contato@exemplo.com',
+        emailAccessCode: 'segredo',
+      ),
+      build: () => generatorBloc,
+      act: (bloc) => bloc.add(SendEmailsBatchEvent()),
+      wait: const Duration(seconds: 2),
+      // O progresso também emite estados; o que importa é o relatório.
+      expect: () => contains(
+        isA<GeneratorEmailReport>()
+            .having((r) => r.sentCount, 'enviados', 0)
+            .having((r) => r.failures.map((f) => f.kind).toSet(), 'tipos', {EmailFailureKind.invalidAddress})
+            .having((r) => r.failures.first.name, 'nome', 'Ana')
+            .having((r) => r.failures.first.suggestion, 'sugestão', 'ana@gmail.com')
+            .having((r) => r.failures.last.detail, 'vazio', contains('vazia')),
+      ),
+      verify: (bloc) {
+        expect(bloc.state, isA<GeneratorLoaded>().having((s) => s.isSendingEmails, 'terminou', false));
+      },
+    );
   });
 }

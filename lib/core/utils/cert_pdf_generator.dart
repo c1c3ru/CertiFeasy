@@ -1,11 +1,13 @@
 import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:archive/archive.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../modules/generator/blocs/generator_state.dart';
 import 'cert_generator.dart';
+import 'certificate_file_names.dart';
 import 'image_compression.dart';
 
 /// Utilitário para geração de PDF em lote de certificados.
@@ -13,21 +15,13 @@ import 'image_compression.dart';
 /// Pode ser chamado diretamente ou via [generatePdfInIsolate] para
 /// manter o event loop do Flutter responsivo durante a geração.
 class CertPdfGenerator {
-  /// Gera o PDF completo e retorna os bytes prontos para salvar/compartilhar.
+  /// Gera um PDF por participante, cada um com o nome da pessoa
+  /// (ex.: `Ana_Silva.pdf`), com frente e/ou verso conforme [mode].
   ///
-  /// [data]           — lista de mapas com as variáveis de cada certificado
-  /// [headers]        — cabeçalhos do CSV (para naming)
-  /// [frontImgBytes]  — PNG do template da frente
-  /// [backImgBytes]   — PNG do template do verso (null se mode == frontOnly)
-  /// [textTemplate]   — string com variáveis {chave}
-  /// [fontSize]       — tamanho da fonte do texto
-  /// [fontFamily]     — família da fonte
-  /// [fontColor]      — cor da fonte como int (ARGB)
-  /// [textPositionX]  — posição X normalizada (0.0–1.0) do texto na frente
-  /// [textPositionY]  — posição Y normalizada (0.0–1.0) do texto na frente
-  /// [mode]           — modo de saída (frontOnly / backOnly / frontAndBack)
-  /// [onProgress]     — callback de progresso (double 0.0–1.0)
-  static Future<Uint8List> generateBatchPdf({
+  /// Com um participante só, devolve o próprio PDF; com mais de um, devolve
+  /// um ZIP com todos os PDFs (o navegador não baixa vários arquivos de uma
+  /// vez sem pedir permissão para cada um).
+  static Future<IndividualPdfsResult> generateIndividualPdfs({
     required List<Map<String, dynamic>> data,
     required List<String> headers,
     required Uint8List frontImgBytes,
@@ -47,31 +41,25 @@ class CertPdfGenerator {
     required PdfMode mode,
     required void Function(double progress) onProgress,
   }) async {
-    // ── Decodificar imagens de template ─────────────────────────────────────
-    final ui.Image frontTemplate = await _decodeImage(frontImgBytes);
-    ui.Image? backTemplate;
-    if (backImgBytes != null) {
-      backTemplate = await _decodeImage(backImgBytes);
-    }
-
+    final frontTemplate = await _decodeImage(frontImgBytes);
+    final backTemplate = backImgBytes == null ? null : await _decodeImage(backImgBytes);
     final generateFront = mode != PdfMode.backOnly;
     final generateBack = mode != PdfMode.frontOnly && backTemplate != null;
+    final baseNames = CertificateFileNames.uniqueBaseNames(data, headers);
 
-    // ── Montar documento PDF ────────────────────────────────────────────────
-    // Frente e verso de cada participante ficam em páginas seguidas
-    // (F1, V1, F2, V2…), na ordem certa para impressão frente e verso.
-    final pdf = pw.Document();
-    Future<void> addPage(Uint8List png) async {
-      final img = pw.MemoryImage(png);
-      final size = await _pdfImageSize(png);
-      pdf.addPage(pw.Page(
-        pageFormat: size,
-        margin: pw.EdgeInsets.zero,
-        build: (pw.Context ctx) => pw.Image(img, fit: pw.BoxFit.fill),
-      ));
-    }
-
+    final archive = Archive();
+    Uint8List? singlePdf;
     for (int i = 0; i < data.length; i++) {
+      final pdf = pw.Document();
+      Future<void> addPage(Uint8List png) async {
+        final size = await _pdfImageSize(png);
+        pdf.addPage(pw.Page(
+          pageFormat: size,
+          margin: pw.EdgeInsets.zero,
+          build: (pw.Context ctx) => pw.Image(pw.MemoryImage(png), fit: pw.BoxFit.fill),
+        ));
+      }
+
       if (generateFront) {
         await addPage(await CertGenerator.generateCertificateImage(
           frontTemplate,
@@ -96,10 +84,26 @@ class CertPdfGenerator {
           textPositionY: backTextPositionY,
         ));
       }
+
+      final bytes = await pdf.save();
+      if (data.length == 1) {
+        singlePdf = bytes;
+      } else {
+        archive.addFile(ArchiveFile('${baseNames[i]}.pdf', bytes.length, bytes));
+      }
       onProgress((i + 1) / data.length);
     }
+    frontTemplate.dispose();
+    backTemplate?.dispose();
 
-    return await pdf.save();
+    if (singlePdf != null) {
+      return IndividualPdfsResult(bytes: singlePdf, fileName: '${baseNames.single}.pdf', isZip: false);
+    }
+    return IndividualPdfsResult(
+      bytes: Uint8List.fromList(ZipEncoder().encode(archive)),
+      fileName: 'certificados_pdf.zip',
+      isZip: true,
+    );
   }
 
   /// [frontFormat]/[backFormat] fixam o tamanho da página quando a imagem foi
@@ -205,16 +209,25 @@ class CertPdfGenerator {
   }
 }
 
+/// Resultado de [CertPdfGenerator.generateIndividualPdfs].
+class IndividualPdfsResult {
+  final Uint8List bytes;
+
+  /// Nome sugerido para o download: o PDF da pessoa ou o ZIP com todos.
+  final String fileName;
+  final bool isZip;
+
+  const IndividualPdfsResult({required this.bytes, required this.fileName, required this.isZip});
+}
+
 // ─── Worker para Isolate ─────────────────────────────────────────────────────
-/// Ponto de entrada do Isolate. Recebe os argumentos via [Map] e envia
-/// o resultado (Uint8List do PDF) ou um erro prefixado com "ERROR:" de volta
-/// pelo [SendPort].
-/// Gera o PDF em lote e reporta pelo [send]: progresso (double), o PDF
-/// (Uint8List) ou 'ERROR:...' (String). Roda num Isolate no app nativo e
-/// direto na thread principal na Web, onde Isolates não existem.
+/// Gera um PDF por participante e reporta pelo [send]: progresso (double),
+/// `FILENAME:nome-do-arquivo` (String), o PDF ou ZIP (Uint8List) ou 'ERROR:...'
+/// (String). Roda num Isolate no app nativo e direto na thread principal na
+/// Web, onde Isolates não existem.
 Future<void> generatePdfJob(Map<String, dynamic> args, void Function(Object message) send) async {
   try {
-    final pdfBytes = await CertPdfGenerator.generateBatchPdf(
+    final result = await CertPdfGenerator.generateIndividualPdfs(
       data: List<Map<String, dynamic>>.from(args['data']),
       headers: List<String>.from(args['headers'] ?? []),
       frontImgBytes: args['frontImgBytes'],
@@ -234,7 +247,9 @@ Future<void> generatePdfJob(Map<String, dynamic> args, void Function(Object mess
       mode: PdfMode.values.byName(args['pdfMode']),
       onProgress: send,
     );
-    send(pdfBytes);
+    // O nome do arquivo vai antes dos bytes, que encerram o job.
+    send('FILENAME:${result.fileName}');
+    send(result.bytes);
   } catch (e, st) {
     send('ERROR:$e\n$st');
   }

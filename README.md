@@ -17,8 +17,8 @@ Você envia a arte do certificado (frente e, se quiser, verso), carrega a lista 
 - **Posição do texto:** ajustada por dois controles deslizantes (horizontal e vertical). A posição é guardada em proporção da arte, então vale para qualquer resolução.
 - **Exportação:**
   - **ZIP (PNGs):** um PNG por certificado, na resolução original da arte. No modo frente e verso, cada participante tem `_frente.png` e `_verso.png`. Arquivos com nomes iguais ou que colidiriam após sanitização recebem sufixos como `_2`, `_3` para não sobrescrever certificados.
-  - **PDF:** nos modos *Somente Frente*, *Somente Verso* ou *Frente + Verso*. No modo frente e verso, as páginas saem intercaladas (frente 1, verso 1, frente 2…), prontas para impressão duplex.
-- **Envio por e-mail:** cada participante recebe o próprio certificado em PDF no endereço da coluna escolhida, com assunto e corpo que aceitam variáveis. O PDF é comprimido automaticamente para caber no limite de 3 MB por anexo. As configurações de e-mail ficam salvas no navegador. Se a coluna de destinatários configurada não existir no CSV atual, o envio fica bloqueado até a escolha explícita de outra coluna; o campo `email_orientador` **não** recebe certificados automaticamente.
+  - **PDF:** um arquivo por participante, com o nome da pessoa (ex.: `Ana_Silva.pdf`), nos modos *Somente Frente*, *Somente Verso* ou *Frente + Verso* (frente e verso da pessoa no mesmo arquivo). Com mais de um participante, os PDFs vêm juntos num ZIP.
+- **Envio por e-mail:** cada participante recebe o próprio certificado em PDF no endereço da coluna escolhida, com assunto e corpo que aceitam variáveis. O PDF é comprimido automaticamente para caber no limite de 3 MB por anexo. As configurações de e-mail ficam salvas no navegador. Se a coluna de destinatários configurada não existir no CSV atual, o envio fica bloqueado até a escolha explícita de outra coluna; o campo `email_orientador` **não** recebe certificados automaticamente. Antes de enviar, o app confere cada endereço: e-mail vazio ou digitado errado (sem @, com espaço, `gmial.com`, `hotmal.com`…) não é enviado. No fim, se algo falhar, uma janela separa quem não recebeu por motivo: **erro de digitação na planilha** (com sugestão de correção), **problema técnico** (internet, Gmail ou servidor; basta tentar de novo mais tarde), **conteúdo recusado** ou **envio não autorizado**, e o botão **Copiar lista** leva tudo para uma planilha.
 - **Upload por clique ou arrastando o arquivo** para a área de envio.
 
 ### Formatação do texto
@@ -103,7 +103,7 @@ Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada 
 2. Ainda em **Upload**, você pode preencher ou corrigir orientador, e-mail do orientador e nome do trabalho para cada participante, mesmo que essas colunas não constem do CSV original. Em seguida, escolha o modo do PDF: *Somente Frente*, *Somente Verso* ou *Frente + Verso*.
 3. Na aba **Texto & Variáveis**, escreva o texto de cada lado usando as variáveis do CSV, como `{nome}`, `{horas}`, `{orientador}`, `{email_orientador}` e `{nome_trabalho}` (as três últimas aparecem quando estão no CSV ou após edição no formulário acadêmico). Ex.: `Certificamos que {nome} apresentou o trabalho {nome_trabalho}, sob orientação de {orientador}.`
 4. Na aba **Aparência**, ajuste tamanho, fonte, cor e posição do texto, conferindo na pré-visualização.
-5. Clique em **Gerar PDF** ou **Gerar ZIP (PNGs)** para baixar os certificados.
+5. Clique em **Gerar PDFs** para baixar um PDF por pessoa, com o nome dela no arquivo (`Ana_Silva.pdf`; com várias pessoas eles vêm juntos num ZIP), ou em **Gerar ZIP (PNGs)** para as imagens.
 6. Para enviar por e-mail, vá à aba **E-mails**, preencha o e-mail para respostas, o código de acesso, o assunto e a mensagem, escolha a coluna com os endereços e clique em **Enviar Certificados**.
 
 ---

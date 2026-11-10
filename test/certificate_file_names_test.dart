@@ -51,4 +51,14 @@ void main() {
       ['certificado_1', 'certificado_2'],
     );
   });
+
+  test('usa a coluna "nome" mesmo quando ela não é a primeira', () {
+    expect(
+      CertificateFileNames.uniqueBaseNames(
+        [{'email': 'ana@x.com', 'nome': 'Ana Silva'}],
+        ['email', 'nome'],
+      ),
+      ['Ana_Silva'],
+    );
+  });
 }

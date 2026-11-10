@@ -20,6 +20,7 @@ import '../../../core/utils/markup_editing.dart';
 import '../../../core/utils/rich_text_markup.dart';
 import '../widgets/rich_text_editor.dart';
 import '../widgets/email_recipient_column_selector.dart';
+import '../widgets/email_report_dialog.dart';
 import '../widgets/participant_academic_fields.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
@@ -237,6 +238,8 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ));
+        } else if (state is GeneratorEmailReport) {
+          EmailReportDialog.show(context, state);
         } else if (state is GeneratorSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(state.message, style: const TextStyle(color: Colors.white)),
@@ -381,9 +384,9 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
             onTap: () => _bloc.add(GenerateBatchEvent()),
           ),
           const SizedBox(height: 8),
-          // ── Botão: Gerar PDF ─────────────────────────────────────────
+          // ── Botão: Gerar PDFs (um por pessoa) ─────────────────────────────────────────
           _buildSidebarActionButton(
-            label: state.isGenerating ? 'Gerando...' : 'Gerar PDF',
+            label: state.isGenerating ? 'Gerando...' : 'Gerar PDFs',
             icon: Icons.picture_as_pdf_rounded,
             enabled: !state.isGenerating && state.canGeneratePdf,
             gradient: const LinearGradient(
