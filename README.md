@@ -84,10 +84,31 @@ O `vercel.json` já instala o Flutter 3.47.6 e roda `flutter build web`, publica
 
 ## ✉️ Envio de certificados por e-mail (Vercel)
 
-O endpoint `/api/email` só envia e-mails para quem informar o **código de acesso** na aba E-mails. Configure na Vercel (Settings → Environment Variables):
+O endpoint `/api/email` só envia e-mails para quem **entrar com uma conta Google @ifce.edu.br** na aba E-mails. O servidor confere o login no Google e aceita apenas contas do Google Workspace do domínio exato `ifce.edu.br` (contas de alunos, que usam outro domínio, e Gmail comum não passam). Não há lista de e-mails para manter.
+
+Configure na Vercel (Settings → Environment Variables) e faça um **Redeploy** depois de mudar qualquer variável:
 
 | Variável | Obrigatória | Descrição |
 | --- | --- | --- |
+| `GMAIL_USER` | Sim | Conta Gmail que envia os certificados |
+| `GMAIL_APP_PASSWORD` | Sim | Senha de app dessa conta |
+| `GOOGLE_CLIENT_ID` | Sim (para o login com Google) | ID do cliente OAuth do tipo "Aplicativo da Web" (termina em `.apps.googleusercontent.com`) |
+| `EMAIL_ALLOWED_DOMAIN` | Não | Domínio liberado; padrão `ifce.edu.br` |
+| `EMAIL_API_TOKEN` | Não | Código de acesso antigo. Só vale enquanto `GOOGLE_CLIENT_ID` não estiver configurado no app web, ou para apps desktop/mobile. Pode ser apagado depois que o login com Google estiver funcionando |
+| `EMAIL_ALLOWED_ORIGINS` | Não | Origens permitidas, separadas por vírgula (ex.: `https://certifeasy.vercel.app`) |
+
+Sem `GOOGLE_CLIENT_ID` nem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada requisição aceita um destinatário e um PDF de até 3 MB; esse teto vem do limite de 4,5 MB por requisição da Vercel, já que o anexo vai em base64. O Gmail envia no máximo cerca de 500 e-mails por dia.
+
+### Como criar o `GOOGLE_CLIENT_ID`
+
+1. Abra o [Google Cloud Console](https://console.cloud.google.com/) com a sua conta e crie (ou escolha) um projeto.
+2. Em **APIs e serviços → Tela de consentimento OAuth** (Google Auth Platform), configure o app. Se a conta for do Workspace do IFCE, escolha o público **Interno**.
+3. Em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**, escolha **Aplicativo da Web** e, em **Origens JavaScript autorizadas**, adicione `https://certifeasy.vercel.app` (e `http://localhost` se for testar localmente). Não é preciso URI de redirecionamento.
+4. Copie o **ID do cliente** para a variável `GOOGLE_CLIENT_ID` na Vercel e faça o Redeploy.
+
+O login dura cerca de 1 hora. Se ele estiver perto de expirar, o app pede para sair e entrar de novo antes de começar um envio em lote.
+
+--- | --- | --- |
 | `GMAIL_USER` | Sim | Conta Gmail que envia os certificados |
 | `GMAIL_APP_PASSWORD` | Sim | Senha de app dessa conta |
 | `EMAIL_API_TOKEN` | Sim | Código de acesso digitado no app (use um valor longo e aleatório) |
@@ -103,8 +124,8 @@ Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada 
 2. Ainda em **Upload**, você pode preencher ou corrigir orientador, e-mail do orientador e nome do trabalho para cada participante, mesmo que essas colunas não constem do CSV original. Em seguida, escolha o modo do PDF: *Somente Frente*, *Somente Verso* ou *Frente + Verso*.
 3. Na aba **Texto & Variáveis**, escreva o texto de cada lado usando as variáveis do CSV, como `{nome}`, `{horas}`, `{orientador}`, `{email_orientador}` e `{nome_trabalho}` (as três últimas aparecem quando estão no CSV ou após edição no formulário acadêmico). Ex.: `Certificamos que {nome} apresentou o trabalho {nome_trabalho}, sob orientação de {orientador}.`
 4. Na aba **Aparência**, ajuste tamanho, fonte, cor e posição do texto, conferindo na pré-visualização.
-5. Clique em **Gerar PDFs** para baixar um PDF por pessoa, com o nome dela no arquivo (`Ana_Silva.pdf`; com várias pessoas eles vêm juntos num ZIP), ou em **Gerar ZIP (PNGs)** para as imagens.
-6. Para enviar por e-mail, vá à aba **E-mails**, preencha o e-mail para respostas, o código de acesso, o assunto e a mensagem, escolha a coluna com os endereços e clique em **Enviar Certificados**.
+5. Clique em **Gerar PDF** ou **Gerar ZIP (PNGs)** para baixar os certificados.
+6. Para enviar por e-mail, vá à aba **E-mails**, preencha o e-mail para respostas, entre com a sua conta Google @ifce.edu.br, preencha o assunto e a mensagem, escolha a coluna com os endereços e clique em **Enviar Certificados**.
 
 ---
 

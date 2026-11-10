@@ -1,5 +1,5 @@
-import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
+import { authConfig, authorizeRequest } from './_lib/auth.js';
 
 // Limites do endpoint. O corpo das funções da Vercel é limitado a ~4,5 MB,
 // e o anexo chega em base64 (~33% maior que o PDF original).
@@ -13,15 +13,8 @@ function isValidEmail(value) {
   return typeof value === 'string' && value.length <= 254 && EMAIL_REGEX.test(value);
 }
 
-// Comparação em tempo constante para não vazar o token por timing.
-function tokenMatches(received, expected) {
-  const a = crypto.createHash('sha256').update(String(received)).digest();
-  const b = crypto.createHash('sha256').update(String(expected)).digest();
-  return crypto.timingSafeEqual(a, b);
-}
-
 function isAllowedOrigin(origin) {
-  // Requisições sem Origin (apps desktop/mobile) passam; a proteção real é o token.
+  // Requisições sem Origin (apps desktop/mobile) passam; a proteção real é a autenticação.
   if (!origin) return true;
   const allowed = (process.env.EMAIL_ALLOWED_ORIGINS || '')
     .split(',')
@@ -43,10 +36,13 @@ export default async function handler(req, res) {
 
   const gmailUser = process.env.GMAIL_USER;
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
-  const apiToken = process.env.EMAIL_API_TOKEN;
+  const auth = authConfig();
 
-  if (!gmailUser || !gmailAppPassword || !apiToken) {
-    console.error('email: variáveis GMAIL_USER, GMAIL_APP_PASSWORD ou EMAIL_API_TOKEN ausentes');
+  // Sem nenhuma forma de autenticação configurada, o endpoint fica fechado.
+  if (!gmailUser || !gmailAppPassword || (!auth.googleEnabled && !auth.apiToken)) {
+    console.error(
+      'email: configure GMAIL_USER, GMAIL_APP_PASSWORD e GOOGLE_CLIENT_ID ou EMAIL_API_TOKEN',
+    );
     return res.status(503).json({ error: 'Envio de e-mails não configurado no servidor.' });
   }
 
@@ -54,10 +50,9 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Origem não permitida.' });
   }
 
-  const auth = req.headers.authorization || '';
-  const received = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!received || !tokenMatches(received, apiToken)) {
-    return res.status(401).json({ error: 'Código de acesso inválido.' });
+  const authorization = await authorizeRequest(req.headers.authorization, auth);
+  if (!authorization.ok) {
+    return res.status(authorization.status).json({ error: authorization.error });
   }
 
   const { to, replyTo, subject, text, attachments } = req.body || {};

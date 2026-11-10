@@ -24,7 +24,11 @@ class EmailSendResult {
   final String? error;
   final EmailFailureKind? kind;
 
-  const EmailSendResult({this.error, this.kind});
+  /// Verdadeiro quando o servidor recusou o código de acesso ou a conta do
+  /// Google (não adianta continuar o lote).
+  final bool unauthorized;
+
+  const EmailSendResult({this.error, this.unauthorized = false});
 
   bool get success => error == null;
 
@@ -92,18 +96,11 @@ class EmailService {
       if (decoded is Map && decoded['error'] is String) message = decoded['error'];
     } catch (_) {}
     debugPrint('Failed to send email to $toEmail: ${response.statusCode} - $message');
-    return EmailSendResult(error: message, kind: classifyStatus(response.statusCode, message));
-  }
-
-  /// Traduz a resposta do /api/email no tipo de falha.
-  static EmailFailureKind classifyStatus(int status, String message) {
-    if (status == 401 || status == 403 || status == 503) return EmailFailureKind.unauthorized;
-    if (status == 400) {
-      return message.toLowerCase().contains('destinatário')
-          ? EmailFailureKind.invalidAddress
-          : EmailFailureKind.rejectedContent;
-    }
-    if (status == 413) return EmailFailureKind.rejectedContent;
-    return EmailFailureKind.technical;
+    return EmailSendResult(
+      error: message,
+      unauthorized: response.statusCode == 401 ||
+          response.statusCode == 403 ||
+          response.statusCode == 503,
+    );
   }
 }

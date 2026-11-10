@@ -16,12 +16,15 @@ import '../../../core/utils/cert_pdf_generator.dart';
 import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/services/preferences_service.dart';
 import '../../../core/services/email_service.dart';
-import '../../../core/utils/email_address_check.dart';
+import '../../../core/services/google_auth/google_session.dart';
 import 'generator_event.dart';
 import 'generator_state.dart';
 
 /// Limite de anexo aceito pelo /api/email (ver api/email.js).
 const kMaxEmailAttachmentBytes = 3 * 1024 * 1024;
+
+/// Tempo mínimo de validade do login com Google para começar um lote.
+const kGoogleSessionMinimumValidity = Duration(minutes: 10);
 
 /// Limite diário aproximado de envios de uma conta Gmail.
 const kGmailDailyLimit = 500;
@@ -44,6 +47,7 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     // Email events
     on<LoadEmailConfigEvent>(_onLoadEmailConfig);
     on<UpdateEmailConfigEvent>(_onUpdateEmailConfig);
+    on<UpdateGoogleSessionEvent>(_onUpdateGoogleSession);
     on<SendEmailsBatchEvent>(_onSendEmailsBatch);
     on<UpdateEmailProgressEvent>(_onUpdateEmailProgress);
     
@@ -57,6 +61,10 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
 
   GeneratorLoaded? get _loaded =>
       state is GeneratorLoaded ? state as GeneratorLoaded : _lastLoaded;
+
+  /// Último login com Google recebido; vale também se ele chegar antes do
+  /// primeiro [GeneratorLoaded].
+  UpdateGoogleSessionEvent? _googleSession;
 
   @override
   void onChange(Change<GeneratorState> change) {
@@ -77,6 +85,9 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         csvData: const [],
         csvHeaders: const [],
         mappedData: const [],
+        googleSignInAvailable: _googleSession?.available ?? false,
+        googleEmail: _googleSession?.email ?? '',
+        googleIdToken: _googleSession?.idToken ?? '',
       );
     }
 
@@ -290,6 +301,18 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     }
   }
 
+  void _onUpdateGoogleSession(UpdateGoogleSessionEvent event, Emitter<GeneratorState> emit) {
+    _googleSession = event;
+    final current = _loaded;
+    if (current != null) {
+      emit(current.copyWith(
+        googleSignInAvailable: event.available,
+        googleEmail: event.email,
+        googleIdToken: event.idToken,
+      ));
+    }
+  }
+
   void _onUpdateEmailProgress(UpdateEmailProgressEvent event, Emitter<GeneratorState> emit) {
     if (_loaded != null) {
       emit(_loaded!.copyWith(
@@ -322,6 +345,19 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
       emit(GeneratorError('Informe um e-mail de resposta válido (ex.: contato@instituicao.edu.br).'));
       emit(current);
       return;
+    }
+
+    // O ID token do Google vale ~1 hora: não começa um lote com ele quase vencido.
+    if (current.googleSignInAvailable) {
+      final expiresAt = idTokenExpiry(current.googleIdToken);
+      if (expiresAt != null &&
+          expiresAt.isBefore(DateTime.now().toUtc().add(kGoogleSessionMinimumValidity))) {
+        emit(GeneratorError(
+          'Sua sessão do Google está perto de expirar. Clique em "Sair" e entre de novo com o Google antes de enviar.',
+        ));
+        emit(current);
+        return;
+      }
     }
 
     emit(current.copyWith(
@@ -419,8 +455,9 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         });
 
         // 3. Envia via Gmail SMTP
+        // Lê a credencial a cada envio: o Google pode renovar o login no meio do lote.
         final result = await EmailService.sendEmailWithAttachment(
-          accessCode: current.emailAccessCode.trim(),
+          accessCode: (_loaded ?? current).emailCredential.trim(),
           replyTo: current.senderEmail.trim(),
           toEmail: recipientEmail,
           subject: parsedSubject,

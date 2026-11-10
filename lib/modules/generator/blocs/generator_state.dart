@@ -50,7 +50,14 @@ class GeneratorLoaded extends GeneratorState {
   /// E-mail para onde vão as respostas dos participantes (Reply-To).
   final String senderEmail;
   /// Código exigido pelo /api/email (variável EMAIL_API_TOKEN na Vercel).
+  /// Só é usado quando o login com Google não está disponível.
   final String emailAccessCode;
+  /// Verdadeiro quando o servidor tem o login com Google configurado.
+  final bool googleSignInAvailable;
+  /// Conta do Google conectada (vazio quando ninguém entrou).
+  final String googleEmail;
+  /// ID token do Google enviado ao /api/email no lugar do código de acesso.
+  final String googleIdToken;
   final String emailSubject;
   final String emailBody;
   final String emailColumn;
@@ -82,6 +89,9 @@ class GeneratorLoaded extends GeneratorState {
     this.backTemplateImageBytes,
     this.senderEmail = 'cti.maracanau@ifce.edu.br',
     this.emailAccessCode = '',
+    this.googleSignInAvailable = false,
+    this.googleEmail = '',
+    this.googleIdToken = '',
     this.emailSubject = 'Seu Certificado',
     this.emailBody = 'Olá,\n\nSegue em anexo o seu certificado.\n\nAtenciosamente,\nEquipe',
     this.emailColumn = 'email',
@@ -115,6 +125,9 @@ class GeneratorLoaded extends GeneratorState {
     bool clearBackTemplate = false,
     String? senderEmail,
     String? emailAccessCode,
+    bool? googleSignInAvailable,
+    String? googleEmail,
+    String? googleIdToken,
     String? emailSubject,
     String? emailBody,
     String? emailColumn,
@@ -146,6 +159,9 @@ class GeneratorLoaded extends GeneratorState {
       backTemplateImageBytes: clearBackTemplate ? null : (backTemplateImageBytes ?? this.backTemplateImageBytes),
       senderEmail: senderEmail ?? this.senderEmail,
       emailAccessCode: emailAccessCode ?? this.emailAccessCode,
+      googleSignInAvailable: googleSignInAvailable ?? this.googleSignInAvailable,
+      googleEmail: googleEmail ?? this.googleEmail,
+      googleIdToken: googleIdToken ?? this.googleIdToken,
       emailSubject: emailSubject ?? this.emailSubject,
       emailBody: emailBody ?? this.emailBody,
       emailColumn: emailColumn ?? this.emailColumn,
@@ -169,11 +185,15 @@ class GeneratorLoaded extends GeneratorState {
   /// A coluna configurada precisa existir no CSV atual, sem fallback implícito.
   bool get hasValidEmailColumn => csvHeaders.contains(emailColumn);
 
+  /// Credencial enviada ao /api/email: com o login com Google disponível, só
+  /// vale a conta do Google; sem ele, vale o código de acesso.
+  String get emailCredential => googleSignInAvailable ? googleIdToken : emailAccessCode;
+
   /// Verdadeiro quando os requisitos para envio de e-mails estão satisfeitos.
   bool get canSendEmails =>
       canGeneratePdf &&
       senderEmail.isNotEmpty &&
-      emailAccessCode.isNotEmpty &&
+      emailCredential.isNotEmpty &&
       hasValidEmailColumn &&
       !isSendingEmails;
 }
