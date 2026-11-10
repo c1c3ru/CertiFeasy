@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../blocs/generator_bloc.dart';
 import '../blocs/generator_event.dart';
 import '../blocs/generator_state.dart';
+import '../../../core/services/google_auth/google_auth.dart';
 import '../../../core/utils/cert_generator.dart';
 import '../../../core/utils/certificate_fonts.dart';
 import '../../../core/utils/csv_template.dart';
@@ -69,6 +70,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     super.initState();
     _bloc = BlocProvider.of<GeneratorBloc>(context);
     _bloc.add(LoadFilesEvent());
+    _initGoogleSignIn();
     _panelAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -602,6 +604,80 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     }
   }
 
+  Future<void> _initGoogleSignIn() async {
+    if (!kIsWeb) return;
+    GoogleSession? latest;
+    void publish() => _bloc.add(UpdateGoogleSessionEvent(
+          available: true,
+          email: latest?.email ?? '',
+          idToken: latest?.idToken ?? '',
+        ));
+    final available = await initGoogleAuth((session) {
+      latest = session;
+      if (mounted) publish();
+    });
+    if (available && mounted) publish();
+  }
+
+  /// Login com Google (quando o servidor oferece) ou o código de acesso antigo.
+  Widget _buildEmailAuth(GeneratorLoaded state) {
+    if (!state.googleSignInAvailable) {
+      return TextFormField(
+        initialValue: state.emailAccessCode,
+        style: const TextStyle(color: Colors.white),
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: _inputDecoration('Código de acesso para envio', Icons.lock_outline),
+        onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(emailAccessCode: val)),
+      );
+    }
+    if (state.googleEmail.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.verified_user_outlined, color: Color(0xFF7A78FF), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Conectado com o Google', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text(
+                    state.googleEmail,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: state.isSendingEmails ? null : googleSignOut,
+              child: const Text('Sair', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Entre com a sua conta institucional @ifce.edu.br para liberar o envio.',
+          style: TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(height: 44, child: googleSignInButton()),
+      ],
+    );
+  }
+
   // ─── TAB 3: EMAIL ───────────────────────────────────────────────────────
   Widget _buildEmailContent(GeneratorLoaded state) {
     return Column(
@@ -624,15 +700,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           style: TextStyle(color: Colors.white70, fontSize: 11),
         ),
         const SizedBox(height: 12),
-        TextFormField(
-          initialValue: state.emailAccessCode,
-          style: const TextStyle(color: Colors.white),
-          obscureText: true,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: _inputDecoration('Código de acesso para envio', Icons.lock_outline),
-          onChanged: (val) => _bloc.add(UpdateEmailConfigEvent(emailAccessCode: val)),
-        ),
+        _buildEmailAuth(state),
         const SizedBox(height: 24),
 
         _buildSectionLabel('Mensagem'),

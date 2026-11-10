@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart';
 class EmailSendResult {
   final String? error;
 
-  /// Verdadeiro quando o servidor recusou o código de acesso (não adianta
-  /// continuar o lote).
+  /// Verdadeiro quando o servidor recusou o código de acesso ou a conta do
+  /// Google (não adianta continuar o lote).
   final bool unauthorized;
 
   const EmailSendResult({this.error, this.unauthorized = false});
@@ -57,7 +57,9 @@ class EmailService {
     debugPrint('Failed to send email to $toEmail: ${response.statusCode} - $message');
     return EmailSendResult(
       error: message,
-      unauthorized: response.statusCode == 401 || response.statusCode == 503,
+      unauthorized: response.statusCode == 401 ||
+          response.statusCode == 403 ||
+          response.statusCode == 503,
     );
   }
 }
