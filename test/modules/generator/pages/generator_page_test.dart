@@ -95,6 +95,44 @@ void main() {
     expect(state.csvHeaders, contains('orientador'));
   });
 
+  testWidgets('aviso de privacidade é discreto e aparece só na aba E-mails',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    final bloc = GeneratorBloc();
+    addTearDown(bloc.close);
+    await tester.pumpWidget(createWidgetUnderTest(bloc));
+    await tester.pumpAndSettle();
+
+    // Não há aviso na página inicial nem login Google obrigatório.
+    expect(find.byKey(const Key('email-privacy-notice')), findsNothing);
+
+    final Uint8List image = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+    );
+    bloc.add(LoadFilesEvent(
+      csvContent: 'nome;evento;data;horas;email\nAna;Feira;2026;4;ana@example.com',
+      imageBytes: image,
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('E-mails').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('email-privacy-notice')), findsOneWidget);
+    expect(find.text('Por que pedimos seu e-mail?'), findsOneWidget);
+    expect(find.byKey(const Key('email-privacy-details')), findsNothing);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('email-privacy-details-toggle')),
+    );
+    await tester.tap(find.byKey(const Key('email-privacy-details-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('email-privacy-details')), findsOneWidget);
+  });
+
   testWidgets('Shows variable chips when CSV is loaded', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;

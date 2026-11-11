@@ -23,6 +23,7 @@ import '../widgets/rich_text_editor.dart';
 import '../widgets/email_recipient_column_selector.dart';
 import '../widgets/email_report_dialog.dart';
 import '../widgets/participant_academic_fields.dart';
+import '../widgets/email_privacy_notice.dart';
 
 // ─── Paleta de cores disponíveis para o texto do certificado ───────────────
 const _colorOptions = [
@@ -65,13 +66,13 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
       TextEditingController(text: 'Informações adicionais do verso...');
       
   bool _isEditingBack = false;
+  bool _googleAuthInitializationRequested = false;
 
   @override
   void initState() {
     super.initState();
     _bloc = BlocProvider.of<GeneratorBloc>(context);
     _bloc.add(LoadFilesEvent());
-    _initGoogleSignIn();
     _panelAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -82,6 +83,7 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
 
   @override
   void dispose() {
+    detachGoogleAuthListener();
     _textTemplateController.dispose();
     _backTextTemplateController.dispose();
     _panelAnimController.dispose();
@@ -224,6 +226,12 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
     if (_currentTab != index) {
       _panelAnimController.forward(from: 0);
       setState(() => _currentTab = index);
+      // Apenas entrar na aba E-mails prepara o botão do Google.
+      // Nenhum diálogo ou sessão é iniciado ao abrir a aplicação.
+      if (index == 3 && !_googleAuthInitializationRequested) {
+        _googleAuthInitializationRequested = true;
+        _initGoogleSignIn();
+      }
     }
   }
 
@@ -615,11 +623,16 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           email: latest?.email ?? '',
           idToken: latest?.idToken ?? '',
         ));
-    final available = await initGoogleAuth((session) {
-      latest = session;
-      if (mounted) publish();
-    });
-    if (available && mounted) publish();
+    try {
+      final available = await initGoogleAuth((session) {
+        latest = session;
+        if (mounted) publish();
+      });
+      if (available && mounted) publish();
+    } catch (error) {
+      // Uma falha de configuração não pode abrir pop-ups nem travar o app.
+      debugPrint('Não foi possível preparar o login do Google: $error');
+    }
   }
 
   /// Login com Google (quando o servidor oferece) ou o código de acesso antigo.
@@ -703,6 +716,8 @@ class _GeneratorPageState extends State<GeneratorPage> with TickerProviderStateM
           style: TextStyle(color: Colors.white70, fontSize: 11),
         ),
         const SizedBox(height: 12),
+        const EmailPrivacyNotice(),
+        const SizedBox(height: 10),
         _buildEmailAuth(state),
         const SizedBox(height: 24),
 

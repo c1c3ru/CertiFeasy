@@ -76,7 +76,7 @@ class EmailService {
         kind: EmailFailureKind.technical,
       );
     } catch (e) {
-      debugPrint('Failed to send email to $toEmail: $e');
+      debugPrint('Falha de conexão com o serviço de e-mail.');
       return const EmailSendResult(
         error: 'sem conexão com o servidor (confira a internet)',
         kind: EmailFailureKind.technical,
@@ -92,7 +92,7 @@ class EmailService {
       final decoded = jsonDecode(response.body);
       if (decoded is Map && decoded['error'] is String) message = decoded['error'];
     } catch (_) {}
-    debugPrint('Failed to send email to $toEmail: ${response.statusCode} - $message');
+    debugPrint('Envio de e-mail recusado pelo servidor (HTTP ${response.statusCode}).');
     return EmailSendResult(error: message, kind: classifyStatus(response.statusCode, message));
   }
 
