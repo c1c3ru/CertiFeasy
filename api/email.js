@@ -117,7 +117,11 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ id: 'sent', message: 'Email sent successfully' });
   } catch (error) {
-    console.error('email: falha ao enviar', error);
+    // Nunca colocar endereço, conteúdo ou anexo nos logs de execução.
+    const code = typeof error?.code === 'string' && /^[A-Z0-9_]{1,32}$/.test(error.code)
+      ? error.code
+      : 'SMTP_ERROR';
+    console.error('email: falha no transporte', code);
     return res.status(502).json({ error: 'Falha ao enviar o e-mail. Tente novamente mais tarde.' });
   }
 }
