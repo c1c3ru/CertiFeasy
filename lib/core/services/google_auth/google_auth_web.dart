@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
@@ -9,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'google_session.dart';
 
 bool _initialized = false;
+void Function(GoogleSession? session)? _sessionListener;
 
 /// Busca o ID de cliente em /api/config e prepara o login com Google.
 ///
@@ -17,6 +17,7 @@ bool _initialized = false;
 /// acesso. A escolha de conta já mostra só contas do domínio liberado
 /// (ifce.edu.br); quem confere de verdade é o servidor.
 Future<bool> initGoogleAuth(void Function(GoogleSession? session) onSessionChanged) async {
+  _sessionListener = onSessionChanged;
   if (_initialized) return true;
   final String? clientId;
   String? allowedDomain;
@@ -45,18 +46,18 @@ Future<bool> initGoogleAuth(void Function(GoogleSession? session) onSessionChang
       switch (event) {
         case GoogleSignInAuthenticationEventSignIn(:final user):
           final idToken = user.authentication.idToken;
-          onSessionChanged(
+          _sessionListener?.call(
             idToken == null ? null : GoogleSession(email: user.email, idToken: idToken),
           );
         case GoogleSignInAuthenticationEventSignOut():
-          onSessionChanged(null);
+          _sessionListener?.call(null);
       }
     },
     onError: (Object e) => debugPrint('google_auth: falha no login ($e)'),
   );
 
-  // Quem já entrou antes volta conectado sem clicar (One Tap do Google).
-  unawaited(signIn.attemptLightweightAuthentication());
+  // Não chamar attemptLightweightAuthentication(): pode exibir One Tap
+  // assim que o site abre. Login apenas pelo botão renderizado na aba E-mails.
   return true;
 }
 
@@ -69,5 +70,7 @@ Widget googleSignInButton() => gis.renderButton(
         locale: 'pt-BR',
       ),
     );
+
+void detachGoogleAuthListener() => _sessionListener = null;
 
 Future<void> googleSignOut() => GoogleSignIn.instance.signOut();
