@@ -361,6 +361,36 @@ void main() {
       ],
     );
 
+    test('edição de e-mail permanece na sessão e não é persistida', () async {
+      generatorBloc.add(LoadFilesEvent());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      generatorBloc.add(UpdateEmailConfigEvent(
+        senderEmail: 'respostas@ifce.edu.br',
+        emailAccessCode: 'credencial-temporaria',
+        emailSubject: 'Certificado do evento',
+        emailBody: 'Olá, segue o certificado.',
+        emailColumn: 'email',
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      final state = generatorBloc.state as GeneratorLoaded;
+      expect(state.senderEmail, 'respostas@ifce.edu.br');
+      expect(state.emailAccessCode, 'credencial-temporaria');
+      expect(state.emailSubject, 'Certificado do evento');
+
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in [
+        'sender_email',
+        'email_access_code',
+        'email_subject',
+        'email_body',
+        'email_column',
+      ]) {
+        expect(prefs.containsKey(key), isFalse, reason: key);
+      }
+    });
+
     test('keeps a CSV loaded while e-mail settings are being saved', () async {
       const csvA = 'nome;evento;data;horas;email\nTeste;Exemplo;01/01;1;t@x.com';
       const csvB = 'nome;evento;data;horas;email\nAna Real;Evento Real;02/02;2;ana@x.com';
