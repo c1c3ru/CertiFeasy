@@ -39,7 +39,6 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
     on<UpdateTemplateEvent>(_onUpdateTemplate);
     on<UpdateTextPositionEvent>(_onUpdateTextPosition);
     on<SelectPreviewRowEvent>(_onSelectPreviewRow);
-    on<UpdateAcademicFieldEvent>(_onUpdateAcademicField);
     on<UpdatePdfModeEvent>(_onUpdatePdfMode);
     on<GenerateBatchEvent>(_onGenerateBatch);
     on<GeneratePdfBatchEvent>(_onGeneratePdfBatch);
@@ -179,57 +178,6 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
         ));
       }
     }
-  }
-
-  /// Atualiza apenas a linha selecionada, preservando os demais certificados.
-  /// Cabeçalhos opcionais podem ser acrescentados mesmo em CSVs antigos.
-  void _onUpdateAcademicField(
-    UpdateAcademicFieldEvent event,
-    Emitter<GeneratorState> emit,
-  ) {
-    final current = _loaded;
-    if (current == null ||
-        current.isGenerating ||
-        current.isSendingEmails ||
-        event.rowIndex < 0 ||
-        event.rowIndex >= current.mappedData.length) {
-      return;
-    }
-
-    final column = event.field.column;
-    final headers = List<String>.of(current.csvHeaders);
-    if (!headers.contains(column)) headers.add(column);
-    final columnIndex = headers.indexOf(column);
-
-    final mappedData = List<Map<String, dynamic>>.of(current.mappedData);
-    final row = Map<String, dynamic>.of(mappedData[event.rowIndex]);
-    row[column] = event.value;
-    mappedData[event.rowIndex] = row;
-
-    // Mantém csvData coerente com os dados editados na memória.
-    final csvData = current.csvData
-        .map((values) => List<dynamic>.of(values))
-        .toList();
-    if (csvData.isNotEmpty) {
-      while (csvData.first.length <= columnIndex) {
-        csvData.first.add('');
-      }
-      csvData.first[columnIndex] = column;
-      final sourceRowIndex = event.rowIndex + 1;
-      if (sourceRowIndex < csvData.length) {
-        final sourceRow = csvData[sourceRowIndex];
-        while (sourceRow.length <= columnIndex) {
-          sourceRow.add('');
-        }
-        sourceRow[columnIndex] = event.value;
-      }
-    }
-
-    emit(current.copyWith(
-      csvData: csvData,
-      csvHeaders: headers,
-      mappedData: mappedData,
-    ));
   }
 
   void _onSelectPreviewRow(SelectPreviewRowEvent event, Emitter<GeneratorState> emit) {

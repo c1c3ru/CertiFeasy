@@ -63,36 +63,38 @@ void main() {
     bloc.close();
   });
   
-  testWidgets('exibe formulário acadêmico após importar CSV antigo',
+  testWidgets('usa campos acadêmicos do arquivo sem formulário redundante',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() => tester.view.resetPhysicalSize());
+
     final bloc = GeneratorBloc();
     addTearDown(bloc.close);
     await tester.pumpWidget(createWidgetUnderTest(bloc));
     await tester.pumpAndSettle();
 
     bloc.add(LoadFilesEvent(
-      csvContent: 'nome;evento;data;horas;email\n'
-          'Ana;Mostra;2026;8;ana@exemplo.com',
+      csvContent: 'Nome;Orientador(a);Título do trabalho;Evento;Data;E-mail;E-mail do orientador\n'
+          'Ana;Prof. Carlos Lima;Inovação no Ensino;Mostra;9-out.;ana@example.com;carlos@example.com',
     ));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('academic-info-editor')), findsOneWidget);
-    expect(find.byKey(const Key('academic-orientador')), findsOneWidget);
-    expect(find.byKey(const Key('academic-email-orientador')), findsOneWidget);
-    expect(find.byKey(const Key('academic-nome-trabalho')), findsOneWidget);
 
-    await tester.ensureVisible(find.byKey(const Key('academic-orientador')));
-    await tester.enterText(
-      find.byKey(const Key('academic-orientador')),
-      'Prof. João',
-    );
-    await tester.pumpAndSettle();
+    // Todos os valores vêm da planilha: nenhuma segunda digitação é necessária.
+    expect(find.byKey(const Key('academic-info-editor')), findsNothing);
+    expect(find.byKey(const Key('academic-orientador')), findsNothing);
+    expect(find.byKey(const Key('academic-email-orientador')), findsNothing);
+    expect(find.byKey(const Key('academic-nome-trabalho')), findsNothing);
+    expect(find.text('Colunas detectadas:'), findsOneWidget);
+    expect(find.text('orientador'), findsOneWidget);
+    expect(find.text('nome_trabalho'), findsOneWidget);
+    expect(find.text('email_orientador'), findsOneWidget);
 
     final state = bloc.state as GeneratorLoaded;
-    expect(state.mappedData.single['orientador'], 'Prof. João');
-    expect(state.csvHeaders, contains('orientador'));
+    expect(state.mappedData.single['orientador'], 'Prof. Carlos Lima');
+    expect(state.mappedData.single['nome_trabalho'], 'Inovação no Ensino');
+    expect(state.mappedData.single['email_orientador'], 'carlos@example.com');
+    expect(state.mappedData.single['horas'], '');
   });
 
   testWidgets('aviso de privacidade é discreto e aparece só na aba E-mails',
