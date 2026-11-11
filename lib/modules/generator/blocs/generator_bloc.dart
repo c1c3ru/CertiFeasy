@@ -259,47 +259,34 @@ class GeneratorBloc extends Bloc<GeneratorEvent, GeneratorState> {
   }
 
   // ─── EMAIL ───────────────────────────────────────────────────────────────
-  Future<void> _onLoadEmailConfig(LoadEmailConfigEvent event, Emitter<GeneratorState> emit) async {
-    if (_loaded != null) {
-      final config = await PreferencesService.loadEmailConfig();
-      emit(_loaded!.copyWith(
-        senderEmail: config['senderEmail'],
-        emailAccessCode: config['accessCode'],
-        emailSubject: config['subject'],
-        emailBody: config['body'],
-        emailColumn: config['emailColumn'],
-      ));
+  Future<void> _onLoadEmailConfig(
+    LoadEmailConfigEvent event,
+    Emitter<GeneratorState> emit,
+  ) async {
+    // A versão antiga armazenava o código de acesso em texto simples no
+    // navegador. Apaga esses dados uma vez e não restaura nenhum valor.
+    try {
+      await PreferencesService.clearLegacyEmailConfig();
+    } catch (error) {
+      debugPrint('Não foi possível limpar preferências antigas de e-mail: $error');
     }
   }
 
-  Future<void> _onUpdateEmailConfig(UpdateEmailConfigEvent event, Emitter<GeneratorState> emit) async {
+  void _onUpdateEmailConfig(
+    UpdateEmailConfigEvent event,
+    Emitter<GeneratorState> emit,
+  ) {
     final current = _loaded;
-    if (current != null) {
-      
-      final senderEmail = event.senderEmail ?? current.senderEmail;
-      final accessCode = event.emailAccessCode ?? current.emailAccessCode;
-      final subject = event.emailSubject ?? current.emailSubject;
-      final body = event.emailBody ?? current.emailBody;
-      final emailColumn = event.emailColumn ?? current.emailColumn;
+    if (current == null) return;
 
-      // Atualiza o estado antes de salvar: depois do await o estado pode ter
-      // mudado (ex.: novo CSV) e não deve ser sobrescrito.
-      emit(current.copyWith(
-        senderEmail: senderEmail,
-        emailAccessCode: accessCode,
-        emailSubject: subject,
-        emailBody: body,
-        emailColumn: emailColumn,
-      ));
-
-      await PreferencesService.saveEmailConfig(
-        senderEmail: senderEmail,
-        accessCode: accessCode,
-        subject: subject,
-        body: body,
-        emailColumn: emailColumn,
-      );
-    }
+    // Preferências de envio existem apenas em memória durante esta sessão.
+    emit(current.copyWith(
+      senderEmail: event.senderEmail ?? current.senderEmail,
+      emailAccessCode: event.emailAccessCode ?? current.emailAccessCode,
+      emailSubject: event.emailSubject ?? current.emailSubject,
+      emailBody: event.emailBody ?? current.emailBody,
+      emailColumn: event.emailColumn ?? current.emailColumn,
+    ));
   }
 
   void _onUpdateGoogleSession(UpdateGoogleSessionEvent event, Emitter<GeneratorState> emit) {
