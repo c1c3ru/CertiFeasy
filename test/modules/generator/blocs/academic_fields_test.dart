@@ -10,136 +10,80 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('permite editar três campos em CSV legado sem alterar outra linha', () async {
+  test('cada trabalho mantém os dados importados do arquivo, sem edição extra',
+      () async {
     final bloc = GeneratorBloc();
     addTearDown(bloc.close);
 
-    const csv = 'nome;evento;data;horas;email\n'
-        'Ana;Mostra;2026;8;ana@exemplo.com\n'
-        'Bia;Mostra;2026;8;bia@exemplo.com';
+    const tsv =
+        'Nome\tOrientador(a)\tTítulo do trabalho\tEvento\tData\tE-mail\tE-mail do orientador\n'
+        'Ana\tProf. Carlos\tInovação no Ensino\tMostra\t9-out.\tana@example.com\tcarlos@example.com\n'
+        'Bia\tProfa. Marta\tTecnologia na Escola\tMostra\t9-out.\tbia@example.com\tmarta@example.com';
+
+    final loaded = bloc.stream
+        .where((state) =>
+            state is GeneratorLoaded && state.mappedData.length == 2)
+        .cast<GeneratorLoaded>()
+        .first;
+    bloc.add(LoadFilesEvent(csvContent: tsv));
+    final state = await loaded;
+
+    expect(state.mappedData, hasLength(2));
+    expect(state.csvHeaders, containsAll([
+      'nome', 'orientador', 'nome_trabalho', 'email_orientador', 'horas',
+    ]));
+    expect(state.mappedData.first['orientador'], 'Prof. Carlos');
+    expect(state.mappedData.last['orientador'], 'Profa. Marta');
+    expect(state.mappedData.first['nome_trabalho'], 'Inovação no Ensino');
+    expect(state.mappedData.last['nome_trabalho'], 'Tecnologia na Escola');
+    expect(state.mappedData.first['email_orientador'], 'carlos@example.com');
+    expect(state.mappedData.last['email_orientador'], 'marta@example.com');
+    expect(state.mappedData.first['horas'], '');
+
+    const template = '{nome} apresentou {nome_trabalho} sob orientação de {orientador}.';
+    expect(
+      stripMarkup(fillTemplate(template, state.mappedData.first)),
+      'Ana apresentou Inovação no Ensino sob orientação de Prof. Carlos.',
+    );
+    expect(
+      stripMarkup(fillTemplate(template, state.mappedData.last)),
+      'Bia apresentou Tecnologia na Escola sob orientação de Profa. Marta.',
+    );
+  });
+
+  test('novo upload substitui os dados anteriores, sem formular preenchimento',
+      () async {
+    final bloc = GeneratorBloc();
+    addTearDown(bloc.close);
 
     final firstLoad = bloc.stream
-        .where((s) => s is GeneratorLoaded && s.mappedData.length == 2)
-        .cast<GeneratorLoaded>()
-        .first;
-    bloc.add(LoadFilesEvent(csvContent: csv));
-    final initial = await firstLoad;
-    expect(initial.csvHeaders, ['nome', 'evento', 'data', 'horas', 'email']);
-
-    Future<GeneratorLoaded> update(
-      int rowIndex,
-      AcademicField field,
-      String value,
-    ) {
-      final next = bloc.stream
-          .where((s) =>
-              s is GeneratorLoaded &&
-              s.mappedData[rowIndex][field.column] == value)
-          .cast<GeneratorLoaded>()
-          .first;
-      bloc.add(UpdateAcademicFieldEvent(
-        rowIndex: rowIndex,
-        field: field,
-        value: value,
-      ));
-      return next;
-    }
-
-    await update(0, AcademicField.orientador, 'Prof. João');
-    await update(0, AcademicField.emailOrientador, 'joao@instituicao.edu.br');
-    final modified = await update(
-      0,
-      AcademicField.nomeTrabalho,
-      'Pesquisa Aplicada',
-    );
-
-    expect(modified.csvHeaders, [
-      'nome', 'evento', 'data', 'horas', 'email',
-      'orientador', 'email_orientador', 'nome_trabalho',
-    ]);
-    expect(modified.csvData.first, modified.csvHeaders);
-    expect(modified.csvData[1][5], 'Prof. João');
-    expect(modified.csvData[1][6], 'joao@instituicao.edu.br');
-    expect(modified.csvData[1][7], 'Pesquisa Aplicada');
-    expect(modified.mappedData[1].containsKey('orientador'), isFalse);
-
-    expect(
-      stripMarkup(fillTemplate(
-        'Título: {nome_trabalho} — {orientador} ({email_orientador})',
-        modified.mappedData.first,
-      )),
-      'Título: Pesquisa Aplicada — Prof. João (joao@instituicao.edu.br)',
-    );
-
-    final otherRow = await update(
-      1,
-      AcademicField.orientador,
-      'Profa. Marta',
-    );
-    expect(otherRow.mappedData.first['orientador'], 'Prof. João');
-    expect(otherRow.mappedData.last['orientador'], 'Profa. Marta');
-    expect(otherRow.csvData[2][5], 'Profa. Marta');
-  });
-
-  test('atualiza valores importados, incluindo strings vazias', () async {
-    final bloc = GeneratorBloc();
-    addTearDown(bloc.close);
-    final loaded = bloc.stream
-        .where((s) => s is GeneratorLoaded && s.mappedData.isNotEmpty)
-        .cast<GeneratorLoaded>()
-        .first;
-    bloc.add(LoadFilesEvent(
-      csvContent: 'nome;evento;data;horas;email;orientador;email_orientador;nome_trabalho\n'
-          'Ana;Mostra;2026;8;ana@exemplo.com;Prof. Antigo;a@b.com;Título antigo',
-    ));
-    await loaded;
-    final updated = bloc.stream
-        .where((s) => s is GeneratorLoaded && s.mappedData[0]['orientador'] == '')
-        .cast<GeneratorLoaded>()
-        .first;
-    bloc.add(UpdateAcademicFieldEvent(
-      rowIndex: 0,
-      field: AcademicField.orientador,
-      value: '',
-    ));
-    final state = await updated;
-    expect(state.mappedData.single['orientador'], '');
-    expect(state.mappedData.single['nome_trabalho'], 'Título antigo');
-    expect(state.csvHeaders.where((h) => h == 'orientador').length, 1);
-  });
-
-  test('novo CSV substitui valores editados anteriormente', () async {
-    final bloc = GeneratorBloc();
-    addTearDown(bloc.close);
-    final initial = bloc.stream
         .where((s) => s is GeneratorLoaded && s.mappedData.isNotEmpty)
         .cast<GeneratorLoaded>()
         .first;
     bloc.add(LoadFilesEvent(
       csvContent: 'nome;evento;data;horas;email\n'
-          'Ana;Mostra;2026;8;ana@exemplo.com',
+          'Ana;Curso;2026;8;ana@example.com',
     ));
-    await initial;
-    final updated = bloc.stream
-        .where((s) => s is GeneratorLoaded && s.mappedData.first['orientador'] == 'Prof. João')
-        .cast<GeneratorLoaded>()
-        .first;
-    bloc.add(UpdateAcademicFieldEvent(
-      rowIndex: 0,
-      field: AcademicField.orientador,
-      value: 'Prof. João',
-    ));
-    await updated;
+    await firstLoad;
+
     final replaced = bloc.stream
-        .where((s) => s is GeneratorLoaded && s.mappedData.first['nome'] == 'Bia')
+        .where((s) =>
+            s is GeneratorLoaded &&
+            s.mappedData.isNotEmpty &&
+            s.mappedData.first['nome'] == 'Bia')
         .cast<GeneratorLoaded>()
         .first;
+
     bloc.add(LoadFilesEvent(
-      csvContent: 'nome;evento;data;horas;email\n'
-          'Bia;Seminário;2026;4;bia@exemplo.com',
+      csvContent:
+          'Nome;Orientador(a);Título do trabalho;Evento;Data;E-mail;E-mail do orientador\n'
+          'Bia;Prof. Carlos;Inovação;Mostra;9-out.;bia@example.com;carlos@example.com',
     ));
     final state = await replaced;
-    expect(state.csvHeaders, isNot(contains('orientador')));
-    expect(state.mappedData.single['orientador'], isNull);
+
+    expect(state.mappedData, hasLength(1));
+    expect(state.mappedData.single['nome_trabalho'], 'Inovação');
+    expect(state.mappedData.single['orientador'], 'Prof. Carlos');
+    expect(state.mappedData.single['horas'], '');
   });
 }
