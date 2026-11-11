@@ -86,9 +86,9 @@ void main() {
     expect(find.byKey(const Key('academic-email-orientador')), findsNothing);
     expect(find.byKey(const Key('academic-nome-trabalho')), findsNothing);
     expect(find.text('Colunas detectadas:'), findsOneWidget);
-    expect(find.text('orientador'), findsOneWidget);
-    expect(find.text('nome_trabalho'), findsOneWidget);
-    expect(find.text('email_orientador'), findsOneWidget);
+    expect(find.text('{orientador}'), findsOneWidget);
+    expect(find.text('{nome_trabalho}'), findsOneWidget);
+    expect(find.text('{email_orientador}'), findsOneWidget);
 
     final state = bloc.state as GeneratorLoaded;
     expect(state.mappedData.single['orientador'], 'Prof. Carlos Lima');
