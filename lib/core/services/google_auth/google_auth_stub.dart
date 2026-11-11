@@ -8,3 +8,6 @@ Future<bool> initGoogleAuth(void Function(GoogleSession? session) onSessionChang
 Widget googleSignInButton() => const SizedBox.shrink();
 
 Future<void> googleSignOut() async {}
+
+/// Fora da web não existe listener de autenticação.
+void detachGoogleAuthListener() {}
