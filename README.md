@@ -120,6 +120,36 @@ Sem `EMAIL_API_TOKEN`, o endpoint responde 503 e nenhum e-mail é enviado. Cada 
 
 ---
 
+## 📱 CI/CD: APK Android versionado
+
+O workflow [**Android APK**](.github/workflows/android-apk.yml) gera um APK universal para cada atualização enviada à branch `master` e também pode ser iniciado manualmente em **GitHub → Actions → Android APK → Run workflow**. Ele instala Flutter 3.47.6 / Java 17, executa `flutter analyze` e `flutter test`, compila `flutter build apk --release`, calcula SHA-256 e publica o APK em **Artifacts** (retenção: 30 dias). O APK não é publicado automaticamente na Play Store.
+
+**Versionamento automático:** a versão base é retirada do `pubspec.yaml` (por exemplo, `version: 1.0.0+1`). Em cada execução, o workflow gera um `versionName` exclusivo, como `1.0.0-ci.12`, e um `versionCode` crescente, como `100012` (`100000 + github.run_number`). O nome do arquivo inclui versão, código, tipo de assinatura e SHA curto do commit. Para mudar a linha de versão (`1.1.0`, `2.0.0` etc.), atualize o `pubspec.yaml`; o CI continua atribuindo um novo número a cada build.
+
+### Assinatura do APK e atualizações
+
+Para permitir que versões posteriores sejam instaladas **por cima das anteriores**, todos os APKs de distribuição precisam usar a **mesma chave privada de assinatura**. Configure estes **GitHub Actions Secrets** em **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Conteúdo |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Arquivo `.jks` codificado em Base64, em uma linha |
+| `ANDROID_STORE_PASSWORD` | Senha do keystore |
+| `ANDROID_KEY_ALIAS` | Alias da chave dentro do keystore |
+| `ANDROID_KEY_PASSWORD` | Senha da chave |
+
+Para criar uma chave nova localmente (fora do repositório), um exemplo é:
+
+```bash
+keytool -genkeypair -v -keystore certifeasy-release.jks -alias certifeasy -keyalg RSA -keysize 3072 -validity 10000
+base64 < certifeasy-release.jks | tr -d '\\n'
+```
+
+Cadastre o Base64 resultante como secret pelo próprio GitHub. **Nunca faça commit da chave, das senhas ou do Base64. Faça backup seguro da chave e das senhas**: sem a mesma assinatura não é possível atualizar uma instalação existente do aplicativo. Se não houver nenhum desses secrets, o workflow ainda produz um APK **somente de teste**, assinado com uma chave debug efêmera do runner, que **não deve ser distribuído como atualização**.
+
+**Atenção antes da distribuição pública:** o `applicationId` Android ainda é `com.example.certifeasy` (identificador de exemplo). Defina um identificador definitivo antes de distribuir APKs externamente; mudar o `applicationId` cria outro aplicativo no Android. O login Google existente é específico da Web e o envio por `/api/email` usa URL relativa: a geração do APK por si só **não adapta automaticamente essas funções ao Android**.
+
+---
+
 ## 📝 Uso Básico
 
 1. Na aba **Upload**, envie a arte da frente (e, se quiser, a do verso) e o arquivo CSV, TSV, XLS ou XLSX dos participantes. Se precisar, use **Baixar modelo CSV** (com a coluna `horas`). Planilhas acadêmicas podem usar os cabeçalhos `Nome`, `Orientador(a)`, `Título do trabalho`, `Evento`, `Data`, `E-mail` e `E-mail do orientador`, sem `Horas`; eles são convertidos automaticamente em `{nome}`, `{orientador}`, `{nome_trabalho}`, `{evento}`, `{data}`, `{email}` e `{email_orientador}`.
