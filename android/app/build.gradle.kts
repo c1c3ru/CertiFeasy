@@ -7,7 +7,7 @@ plugins {
 
 // Assinatura estável é lida apenas do ambiente do CI / máquina local.
 // Sem uma chave configurada, o APK é assinado com a chave de depuração
- // apenas para testes. Essa chave não é adequada para distribuir atualizações.
+// apenas para testes. Essa chave não é adequada para distribuir atualizações.
 val releaseKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
 val releaseStorePassword = System.getenv("ANDROID_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
@@ -16,7 +16,7 @@ val releaseSigningReady = !releaseKeystoreFile.isNullOrBlank() &&
     !releaseStorePassword.isNullOrBlank() &&
     !releaseKeyAlias.isNullOrBlank() &&
     !releaseKeyPassword.isNullOrBlank() &&
-    file(releaseKeystoreFile).isFile
+    (releaseKeystoreFile?.let { file(it).isFile } == true)
 
 android {
     signingConfigs {
