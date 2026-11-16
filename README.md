@@ -141,7 +141,7 @@ Para criar uma chave nova localmente (fora do repositório), um exemplo é:
 
 ```bash
 keytool -genkeypair -v -keystore certifeasy-release.jks -alias certifeasy -keyalg RSA -keysize 3072 -validity 10000
-base64 < certifeasy-release.jks | tr -d '\\n'
+base64 < certifeasy-release.jks | tr -d '\n'
 ```
 
 Cadastre o Base64 resultante como secret pelo próprio GitHub. **Nunca faça commit da chave, das senhas ou do Base64. Faça backup seguro da chave e das senhas**: sem a mesma assinatura não é possível atualizar uma instalação existente do aplicativo. Se não houver nenhum desses secrets, o workflow ainda produz um APK **somente de teste**, assinado com uma chave debug efêmera do runner, que **não deve ser distribuído como atualização**.
