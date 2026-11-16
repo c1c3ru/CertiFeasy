@@ -5,7 +5,30 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Assinatura estável é lida apenas do ambiente do CI / máquina local.
+// Sem uma chave configurada, o APK é assinado com a chave de depuração
+// apenas para testes. Essa chave não é adequada para distribuir atualizações.
+val releaseKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+val releaseStorePassword = System.getenv("ANDROID_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+val releaseSigningReady = !releaseKeystoreFile.isNullOrBlank() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank() &&
+    (releaseKeystoreFile?.let { file(it).isFile } == true)
+
 android {
+    signingConfigs {
+        if (releaseSigningReady) {
+            create("ciRelease") {
+                storeFile = file(releaseKeystoreFile!!)
+                storePassword = releaseStorePassword!!
+                keyAlias = releaseKeyAlias!!
+                keyPassword = releaseKeyPassword!!
+            }
+        }
+    }
     namespace = "com.example.certifeasy"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -32,9 +55,13 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // No CI, a chave permanente vem dos GitHub Secrets.
+            // Sem segredos, gera apenas APK de teste (debug-signed).
+            signingConfig = if (releaseSigningReady) {
+                signingConfigs.getByName("ciRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
