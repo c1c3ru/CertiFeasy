@@ -1,0 +1,156 @@
+name: Android APK
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# APKs são entregues como artefatos do workflow, sem publicar na Play Store.
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Verificar e gerar APK Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/certifeasy-release.jks
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v5
+
+      - name: Configurar Java 17 e cache Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - name: Instalar dependências
+        run: flutter pub get
+
+      # VersionName legível muda em todo run, versionCode cresce sem
+      # modificar arquivos versionados ou gerar commits automáticos.
+      - name: Calcular versão do APK
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_version="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+([[:space:]]*#.*)?$/\1/p' pubspec.yaml)"
+          if [[ ! "$base_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Defina version: X.Y.Z+N no pubspec.yaml."
+            exit 1
+          fi
+          build_number=$((100000 + GITHUB_RUN_NUMBER))
+          if (( build_number >= 2100000000 )); then
+            echo "::error::versionCode acima do limite permitido pelo Android."
+            exit 1
+          fi
+          version_name="${base_version}-ci.${GITHUB_RUN_NUMBER}"
+          echo "name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "code=${build_number}" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Análise estática
+        run: flutter analyze
+
+      - name: Testes
+        run: flutter test
+
+      # Para APKs atualizáveis, configurar os quatro Secrets abaixo.
+      # Sem eles, gera APK de TESTE com chave debug temporária do runner.
+      - name: Preparar assinatura do APK
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$KEYSTORE_BASE64" ]]; then
+            if [[ -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+              echo "::error::Assinatura incompleta: configure os quatro Secrets ANDROID_*."
+              exit 1
+            fi
+            umask 077
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+            test -s "$ANDROID_KEYSTORE_FILE" || {
+              echo "::error::ANDROID_KEYSTORE_BASE64 inválido."
+              exit 1
+            }
+            echo "mode=signed" >> "$GITHUB_OUTPUT"
+          else
+            if [[ -n "$STORE_PASSWORD" || -n "$KEY_ALIAS" || -n "$KEY_PASSWORD" ]]; then
+              echo "::error::Assinatura incompleta: falta ANDROID_KEYSTORE_BASE64."
+              exit 1
+            fi
+            echo "::warning::APK de teste: assinatura debug efêmera. Não distribua como atualização."
+            echo "mode=test-only" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compilar APK release
+        env:
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter build apk --release \
+            --build-name="${{ steps.version.outputs.name }}" \
+            --build-number="${{ steps.version.outputs.code }}"
+
+      - name: Empacotar APK e hash SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_apk="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$source_apk" || { echo "::error::APK não foi gerado."; exit 1; }
+          mkdir -p dist
+          filename="CertiFeasy-v${{ steps.version.outputs.name }}+${{ steps.version.outputs.code }}-${{ steps.signing.outputs.mode }}-${{ steps.version.outputs.sha }}.apk"
+          cp "$source_apk" "dist/$filename"
+          (cd dist && sha256sum "$filename" > SHA256SUMS.txt)
+
+      - name: Publicar APK como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: CertiFeasy-Android-${{ steps.version.outputs.name }}-${{ steps.signing.outputs.mode }}
+          path: dist/
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Resumo do build
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## APK Android pronto"
+            echo "- **Versão visível:** ${{ steps.version.outputs.name }}"
+            echo "- **versionCode Android:** ${{ steps.version.outputs.code }}"
+            echo "- **Commit:** \`${{ steps.version.outputs.sha }}\`"
+            echo "- **Tipo de assinatura:** ${{ steps.signing.outputs.mode }}"
+            echo "- **Download:** Actions > Android APK > esta execução > Artifacts"
+            if [[ "${{ steps.signing.outputs.mode }}" == "test-only" ]]; then
+              echo ""
+              echo "> **Somente teste.** A assinatura debug muda entre execuções e não garante atualização sobre APKs anteriores. Configure os GitHub Secrets de assinatura."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apagar keystore temporário
+        if: always()
+        shell: bash
+        run: rm -f "$ANDROID_KEYSTORE_FILE"
